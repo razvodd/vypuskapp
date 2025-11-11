@@ -9,6 +9,7 @@ import json # Для сохранения/загрузки конфигурац�
 import atexit # Для сохранения конфигурации при закрытии
 import shutil # Для перемещения/копирования файлов
 import threading # НОВОЕ: Для неблокирующего копирования
+from pathlib import Path
 
 # ДОБАВЛЕНИЕ: Импорт Pillow (PIL) для работы с PNG
 try:
@@ -23,7 +24,7 @@ FONT_FAMILY = 'Roboto'
 COLOR_BACKGROUND = 'white'
 COLOR_TEXT_NORMAL = '#444'
 COLOR_TEXT_LIGHT = '#888'
-COLOR_ACCENT_PINK = '#e53965'
+COLOR_ACCENT_PINK = '#e53965' # Основной цвет (красный)
 COLOR_LINE_INACTIVE = '#ccc'
 COLOR_BUTTON_DISABLED = '#444' 
 COLOR_BUTTON_DISABLED_LIGHT = '#EAEAEA' 
@@ -31,6 +32,11 @@ COLOR_BUTTON_TEXT_DISABLED = '#ccc'
 COLOR_CHECKBOX_BORDER = '#AEAEAE' 
 COLOR_STATUS_ERROR = '#D32F2F' # Красный для ошибок
 COLOR_STATUS_NORMAL = '#2E7D32' # Зеленый для успеха
+COLOR_STATUS_INFO = '#888' # Серый для информационных сообщений
+
+# НОВОЕ: Красный цвет для активных чекбоксов
+COLOR_CHECKBOX_ACTIVE = '#e53965' 
+COLOR_BUTTON_DARK = '#333333' # Темно-серый для кнопки Генерации (для имитации макета)
 
 # Параметры UI
 BLOCK_PADY_VERTICAL = (20, 0)
@@ -46,11 +52,11 @@ RAW_EXTENSIONS = [
 
 # НОВОЕ: Карта позиций для переименования учеников
 STUDENT_POSITIONS = {
-    0: "Виньетка", # Будет переименовано в ФИО.JPG
-    1: "ЛР_Портрет1", # Будет переименовано в ЛР_ФИО.JPG
-    2: "ЛС_Портрет2", # Будет переименовано в ЛС_ФИО.JPG
-    3: "Друг1",       # Сохраняет номер
-    4: "Друг2"        # Сохраняет номер
+    0: "Виньетка", 
+    1: "ЛР_Портрет1", 
+    2: "ЛС_Портрет2", 
+    3: "Друг1",       
+    4: "Друг2"       
 }
 
 # ====================================================================
@@ -66,11 +72,10 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
     
 # ====================================================================
-# КЛАСС FloatingLabelEntry
+# КЛАСС FloatingLabelEntry (Оставлен для PathSelector)
 # ====================================================================
 class FloatingLabelEntry(tk.Frame):
     def __init__(self, master, label_text, font_family, initial_value="", on_change_callback=None, **kwargs):
-        # ИСПРАВЛЕНИЕ: Исправлен вызов super()
         super().__init__(master, bg=COLOR_BACKGROUND) 
         self.label_text = label_text
         self.font_family = font_family
@@ -82,13 +87,12 @@ class FloatingLabelEntry(tk.Frame):
         self.entry_container.pack(fill='x', expand=True)
         self.entry_container.pack_propagate(False)
 
-        # ИЗМЕНЕНИЕ: Убран bd и relief, добавлен highlightthickness=0
         self.entry = tk.Entry(self.entry_container, bd=0, relief=tk.FLAT,
-                              highlightthickness=0, # Убраны серые рамки
+                              highlightthickness=0, 
                               font=(font_family, 12), bg=COLOR_BACKGROUND, 
                               fg=COLOR_TEXT_NORMAL, insertbackground=COLOR_ACCENT_PINK, 
-                              insertwidth=1, # Уменьшен курсор
-                              readonlybackground=COLOR_BACKGROUND, # КРИТИЧНОЕ ИСПРАВЛЕНИЕ
+                              insertwidth=1, 
+                              readonlybackground=COLOR_BACKGROUND, 
                               **kwargs)
         self.entry.place(relx=0, rely=0.7, relwidth=1, anchor='w')
 
@@ -104,15 +108,13 @@ class FloatingLabelEntry(tk.Frame):
         self.entry.bind("<FocusOut>", self._focus_out)
         self.entry.bind("<KeyRelease>", self._on_key_release)
         self.label.bind("<Button-1>", lambda e: self.entry.focus_set())
-        # ИСПРАВЛЕНИЕ: Удалена привязка <Key>, которая конфликтовала с вводом текста (особенно кириллицы)
         
         self._setup_universal_entry_clipboard()
 
         if initial_value:
              self.entry.insert(0, initial_value)
              self._float_label(initial_call=True)
-
-    # ИСПРАВЛЕНИЕ: Удален метод _handle_all_key_input
+             self.entry.config(fg=COLOR_TEXT_NORMAL)
     
     def _setup_universal_entry_clipboard(self):
         """Настраивает привязки для Ctrl+C/V/X, работающие независимо от раскладки."""
@@ -129,8 +131,6 @@ class FloatingLabelEntry(tk.Frame):
         if not self.entry.get().strip():
             self._sink_label()
         
-        # ИЗМЕНЕНИЕ: При потере фокуса для поля "Дата", принудительно устанавливаем цвет текста
-        # если есть значение, чтобы он не сливался с опускающейся меткой.
         if self.label_text == "Дата" and self.entry.get().strip():
             self.entry.config(fg=COLOR_TEXT_NORMAL)
             
@@ -197,7 +197,7 @@ class FloatingLabelEntry(tk.Frame):
         return self.entry.get()
     
 # ====================================================================
-# КЛАСС PathFileSelector
+# КЛАСС PathFileSelector (Оставлен для PathSelector)
 # ====================================================================
 class PathFileSelector(FloatingLabelEntry):
     def __init__(self, master, label_text, font_family, select_dir=True, allow_multiple=False, initial_value="", on_select_callback=None, **kwargs):
@@ -205,15 +205,12 @@ class PathFileSelector(FloatingLabelEntry):
         self.allow_multiple = allow_multiple 
         self.on_select_callback = on_select_callback
         
-        # ИЗМЕНЕНИЕ: Вызываем super() без extra kwargs, так как они уже обработаны
         super().__init__(master, label_text, font_family, initial_value=initial_value, on_change_callback=None, state='readonly', **kwargs)
         
         self.entry.config(cursor="hand2")
         self.entry.unbind("<KeyRelease>")
         self.entry.unbind("<Key>")
 
-        # ИСПРАВЛЕНИЕ: Используем lambda, чтобы вызов self.select_path_or_file
-        # можно было переопределить ПОСЛЕ __init__
         self.entry.bind("<Button-1>", lambda e: self.select_path_or_file(e))
         self.label.bind("<Button-1>", lambda e: self.select_path_or_file(e))
         
@@ -221,16 +218,15 @@ class PathFileSelector(FloatingLabelEntry):
         if initial_value:
              self.entry.insert(0, initial_value)
              self._float_label(initial_call=True)
+             self.entry.config(fg=COLOR_TEXT_NORMAL)
         self.entry.config(state='readonly')
 
     def select_path_or_file(self, event=None):
         initial_dir = os.path.expanduser('~')
         current_val = self.get().strip()
-        # ИЗМЕНЕНИЕ: Проверяем, содержит ли текущее значение запятую (признак нескольких файлов)
+        
         if (not self.allow_multiple or ',' not in current_val) and current_val:
-            # Пытаемся найти существующий путь (даже если это список)
             first_path_guess = current_val.split(',')[0].strip()
-            # Проверяем, существует ли путь, прежде чем использовать dirname
             if os.path.exists(first_path_guess):
                 if os.path.isfile(first_path_guess):
                     initial_dir = os.path.dirname(first_path_guess)
@@ -249,7 +245,7 @@ class PathFileSelector(FloatingLabelEntry):
         else:
             paths_selected = filedialog.askopenfilename(
                 initialdir=initial_dir,
-                filetypes=[("JPEG files", "*.jpg *.jpeg")]
+                filetypes=[("Text files", "*.txt")] 
             )
             
         if paths_selected:
@@ -258,20 +254,17 @@ class PathFileSelector(FloatingLabelEntry):
             
             display_text = ""
             if isinstance(paths_selected, (list, tuple)):
-                # ИЗМЕНЕНИЕ: Отображаем имена файлов через запятую, как в скриншоте
                 if len(paths_selected) > 0:
                     filenames = [os.path.basename(p) for p in paths_selected]
                     display_text = ", ".join(filenames)
-                # (Если 0 файлов, display_text останется пустым)
             else:
-                display_text = paths_selected # Для askdirectory (один путь)
+                display_text = paths_selected 
 
             self.entry.insert(0, display_text)
             self.entry.config(state='readonly')
             self._float_label(initial_call=True)
             
             if self.on_select_callback:
-                # Передаем кортеж (для askopenfilenames) или строку (для askdirectory)
                 self.on_select_callback(paths_selected)
 
 # ====================================================================
@@ -279,13 +272,10 @@ class PathFileSelector(FloatingLabelEntry):
 # ====================================================================
 class FolderGeneratorApp:
     
-    # ИЗМЕНЕНИЕ: НОВАЯ ФУНКЦИЯ ЦЕНТРИРОВАНИЯ
-    def _center_window(self, width=380, height=700): # Увеличена высота для 3 кнопок
+    def _center_window(self, width=380, height=700): 
         """Центрирует окно приложения на экране."""
-        # Получаем размеры экрана
         screen_width = self.master.winfo_screenwidth()
         screen_height = self.master.winfo_screenheight()
-        # Рассчитываем позицию x, y
         x = (screen_width // 2) - (width // 2)
         y = (screen_height // 2) - (height // 2)
         self.master.geometry(f'{width}x{height}+{x}+{y}')
@@ -300,31 +290,34 @@ class FolderGeneratorApp:
         # --- Переменные состояния ---
         self.output_path = "" 
         self.shooting_path = ""
-        self.selection_file_path = None # ИЗМЕНЕНИЕ: Теперь это ключевое поле
+        self.selection_file_path = None 
         
-        # ИЗМЕНЕНИЕ: Словарь для хранения номеров и их позиций
-        # Пример: {студент: {102: 0, 105: 1, 110: 3, 112: 4}, учитель: {401: 0}, общая: {501: 0}}
+        # НОВОЕ: Словарь для хранения параметров заказа (вместо UI полей)
+        self.order_params = {}
         self.selection_data = {} 
         
-        self.entries = {}
-        self.var_quotes = tk.BooleanVar()
-        self.var_video = tk.BooleanVar()
+        self.entries = {} # Содержит только PathSelector и Dummy Entry для совместимости
+        
+        # ЧЕКБОКСЫ
+        self.var_jpg_exported = tk.BooleanVar(value=False)
+        self.var_copy_raw_selected = tk.BooleanVar(value=True) 
+        self.var_copy_all_files = tk.BooleanVar(value=True)   
+        
         self.generate_button = None 
-        self.copy_raw_button = None # НОВАЯ КНОПКА
         self.sort_button = None 
         self.logo_image = None
         self.status_label = None
         self.canvas_gen = None 
-        self.canvas_copy_raw = None # НОВЫЙ CANVAS
         self.canvas_sort = None
         
-        # ИЗМЕНЕНИЕ: Добавляем ссылки на виджеты для блокировки
         self.path_shooting_sel = None
         self.checkbox_container = None
         
-        # НОВОЕ: Флаг состояния для неблокирующего копирования
-        self.is_copying_raw = False
-        
+        self.is_copying = False 
+        self.is_sorting_jpg = False 
+        self.is_moving_all_raw = False 
+        self.is_moving_all_jpg = False # НОВЫЙ ФЛАГ ДЛЯ ПЕРЕМЕЩЕНИЯ JPG
+
         # --- Загрузка и инициализация ---
         self.config_data = self._load_config()
         self._init_variables_from_config()
@@ -332,8 +325,8 @@ class FolderGeneratorApp:
         self.setup_ui()
         self.set_default_path()
         
-        # ИЗМЕНЕНИЕ: Центрируем окно ПОСЛЕ setup_ui
-        self._center_window(width=380, height=700)
+        # ИЗМЕНЕНИЕ: Уменьшена высота окна до макета
+        self._center_window(width=380, height=550) 
         
         master.protocol("WM_DELETE_WINDOW", self._on_closing)
         atexit.register(self.save_config)
@@ -353,27 +346,53 @@ class FolderGeneratorApp:
         return {}
 
     def _init_variables_from_config(self):
-        """Инициализирует переменные из загруженной конфигурации."""
+        """Инициализирует переменные из загруженной конфигурации и заполняет order_params."""
         data = self.config_data
         
-        # ИЗМЕНЕНИЕ (NEW): Загружаем последний базовый путь для съемки
         self.shooting_path = data.get('last_shooting_base_path', "") 
         self.output_path = "" 
         
-        # ИЗМЕНЕНИЕ: Всегда начинаем с пустых/выключенных значений
-        self.var_quotes.set(False)
-        self.var_video.set(False)
+        # Чекбоксы копирования
+        self.var_copy_raw_selected.set(data.get('copy_raw_selected_default', True))
+        self.var_copy_all_files.set(data.get('copy_all_files_default', True))
         
+        # НОВОЕ: Загрузка параметров заказа в словарь (вместо полей UI)
+        today = datetime.datetime.now().strftime("%d.%m.%Y")
+        self.order_params = {
+            "Номер заказа": data.get('order_number', ""), # ИСПРАВЛЕНИЕ: Пусто по умолчанию
+            "Дата": data.get('date', today),
+            "Номер школы": data.get('school_number', ""), # ИСПРАВЛЕНИЕ: Пусто по умолчанию
+            "Класс": data.get('class_name', ""), # ИСПРАВЛЕНИЕ: Пусто по умолчанию
+        }
+
+        # НОВОЕ: Создаем Dummy Entry для совместимости с кодом, который вызывает self.entries["Ключ"].get()
+        for key, value in self.order_params.items():
+             self.entries[key] = self._create_dummy_entry(value)
+        
+    def _create_dummy_entry(self, initial_value):
+        """Создает фиктивный объект с методом get()."""
+        class DummyEntry:
+            def __init__(self, value):
+                self._value = value
+            def get(self):
+                return self._value
+        return DummyEntry(initial_value)
+
     def save_config(self):
         """Сохраняет текущие настройки в файл .vyipusk_config.json."""
-        # НОВОЕ: Получаем родительский каталог для сохранения (без последней папки)
         last_shooting_dir = ""
-        # Если shooting_path установлен (например, 'D:\DCIM\104MSDCF'), сохраняем его родителя ('D:\DCIM')
         if self.shooting_path:
              last_shooting_dir = os.path.dirname(self.shooting_path)
 
         config_data = {
-            'last_shooting_base_path': last_shooting_dir
+            'last_shooting_base_path': last_shooting_dir,
+            'copy_raw_selected_default': self.var_copy_raw_selected.get(),
+            'copy_all_files_default': self.var_copy_all_files.get(),
+            # Сохраняем значения параметров заказа из словаря
+            'order_number': self.order_params.get("Номер заказа", ""),
+            'school_number': self.order_params.get("Номер школы", ""),
+            'class_name': self.order_params.get("Класс", ""),
+            'date': self.order_params.get("Дата", ""),
         }
         try:
             with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
@@ -386,16 +405,15 @@ class FolderGeneratorApp:
         self.save_config()
         self.master.destroy()
 
-    def _update_status(self, message, is_error=False):
+    def _update_status(self, message, is_error=False, color=None):
         """Обновляет метку статуса внизу."""
-        # ИЗМЕНЕНИЕ: Цвет статуса всегда серый
-        color = COLOR_TEXT_LIGHT # if is_error else COLOR_TEXT_LIGHT
+        final_color = color if color is not None else COLOR_STATUS_INFO 
         if is_error:
-             color = COLOR_STATUS_ERROR # Если ошибка, используем красный
+             final_color = COLOR_STATUS_ERROR 
              
         if self.status_label:
-            self.status_label.config(text=message, fg=color)
-            self.master.update_idletasks() # Обновляем UI немедленно
+            self.status_label.config(text=message, fg=final_color)
+            self.master.update_idletasks() 
         else:
             print(f"СТАТУС: {message}")
 
@@ -420,36 +438,48 @@ class FolderGeneratorApp:
         radius = 16
         
         if state == tk.NORMAL:
-            color = COLOR_ACCENT_PINK
-            text_color = "white"
+            color = COLOR_BUTTON_DARK if canvas == self.canvas_gen else COLOR_BACKGROUND 
+            text_color = "white" if canvas == self.canvas_gen else COLOR_BUTTON_DARK 
             cursor = "hand2"
+            outline_color = COLOR_BACKGROUND if canvas == self.canvas_gen else COLOR_BUTTON_DARK 
         else:
-            # Если DISABLED, проверяем, не идет ли копирование, чтобы показать "Копирование..."
-            if self.is_copying_raw and canvas == self.canvas_copy_raw:
+            if self.is_copying and canvas == self.canvas_gen:
                  color = COLOR_ACCENT_PINK
                  text_color = "white"
-                 text = "Копирование..."
+                 text = "Копирование/Перемещение..."
+            elif self.is_sorting_jpg and canvas == self.canvas_sort: 
+                 color = COLOR_ACCENT_PINK
+                 text_color = "white"
+                 text = "Сортировка JPG..."
+            elif self.is_moving_all_raw and canvas == self.canvas_sort: 
+                 color = COLOR_ACCENT_PINK
+                 text_color = "white"
+                 text = "Перемещение RAW..."
             else:
                  color = COLOR_BUTTON_DISABLED_LIGHT
                  text_color = COLOR_BUTTON_TEXT_DISABLED
             cursor = "arrow" 
-        
-        self.create_rounded_rectangle(canvas, 1, 1, width-1, height-1, radius, fill_color=color, tags="button_bg") 
+            outline_color = COLOR_BUTTON_DISABLED_LIGHT
+
+        self.create_rounded_rectangle(canvas, 1, 1, width-1, height-1, radius, 
+                                      fill_color=color, outline_color=outline_color, width=1, tags="button_bg") 
         
         canvas.create_text(width/2, height/2, text=text, 
-                              font=(FONT_FAMILY, 14, 'bold'), fill=text_color, tags="button_text")
+                           font=(FONT_FAMILY, 14, 'bold'), fill=text_color, tags="button_text")
         
         canvas.config(cursor=cursor)
 
-    def create_styled_checkbox_in_frame(self, master, text, variable, row, col, columnspan, label_right_pad=4):
-        """Создает стилизованный чекбокс."""
+    def create_styled_checkbox_in_frame(self, master, text, variable, row, col, columnspan, label_right_pad=4, checkbox_type='normal'):
+        """
+        Создает стилизованный чекбокс.
+        """
         internal_frame = tk.Frame(master, bg=COLOR_BACKGROUND)
         internal_frame.grid(row=row, column=col, columnspan=columnspan, sticky='w') 
 
         indicator_size = 20
         
         canvas = tk.Canvas(internal_frame, width=indicator_size, height=indicator_size, 
-                            bg=COLOR_BACKGROUND, highlightthickness=0, bd=0)
+                           bg=COLOR_BACKGROUND, highlightthickness=0, bd=0)
         canvas.pack(side=tk.LEFT, padx=(0, 4))
         
         def draw_indicator():
@@ -459,8 +489,10 @@ class FolderGeneratorApp:
             checkbox_radius = 6
             
             if variable.get():
+                active_color = COLOR_ACCENT_PINK
+                
                 self.create_rounded_rectangle(canvas, x1, y1, x2, y2, checkbox_radius, 
-                                              fill_color=COLOR_ACCENT_PINK, tags="checkbox_outer_border")
+                                              fill_color=active_color, tags="checkbox_outer_border")
                 offset_white = 2
                 w_x1, w_y1 = x1 + offset_white, y1 + offset_white
                 w_x2, w_y2 = x2 - offset_white, y2 - offset_white
@@ -470,7 +502,7 @@ class FolderGeneratorApp:
                 p_x1, p_y1 = x1 + offset_pink, y1 + offset_pink
                 p_x2, p_y2 = x2 - offset_pink, y2 - offset_pink
                 self.create_rounded_rectangle(canvas, p_x1, p_y1, p_x2, p_y2, 
-                                              checkbox_radius, fill_color=COLOR_ACCENT_PINK, tags="checkbox_inner_fill")
+                                              checkbox_radius, fill_color=active_color, tags="checkbox_inner_fill")
             else:
                 outline_color = COLOR_CHECKBOX_BORDER
                 self.create_rounded_rectangle(canvas, x1, y1, x2, y2, checkbox_radius, 
@@ -482,6 +514,7 @@ class FolderGeneratorApp:
 
         def toggle_state(event=None):
             variable.set(not variable.get())
+            self.check_input_fields() 
         
         variable.trace_add('write', lambda *args: draw_indicator())
         
@@ -496,6 +529,9 @@ class FolderGeneratorApp:
     # UI Setup
     # ====================================================================
     def setup_ui(self):
+        # ИЗМЕНЕНИЕ: Уменьшена высота до 550
+        self._center_window(width=380, height=550) 
+        
         main_frame = tk.Frame(self.master, bg=COLOR_BACKGROUND)
         main_frame.pack(pady=20, padx=20, fill="both", expand=True)
         for i in range(4):
@@ -506,18 +542,15 @@ class FolderGeneratorApp:
         header_frame.grid(row=1, column=0, columnspan=4, sticky='w', padx=10, pady=(10, 20))
         
         try:
-            original_image = Image.open(resource_path("assets/logo.png"))
-            logo_height = 38 
-            aspect_ratio = original_image.width / original_image.height
-            logo_width = int(logo_height * aspect_ratio)
-            resized_image = original_image.resize((logo_width, logo_height), Image.Resampling.LANCZOS)
-            self.logo_image = ImageTk.PhotoImage(resized_image)
-            logo_label = tk.Label(header_frame, image=self.logo_image, bg=COLOR_BACKGROUND)
-            logo_label.pack(side=tk.LEFT, padx=(0, 0))
+            # ИМИТАЦИЯ ЛОГОТИПА
+            logo_label = tk.Label(header_frame, text="ВЫПУСК",
+                       font=(FONT_FAMILY, 24, 'bold'),
+                       fg=COLOR_ACCENT_PINK, bg=COLOR_BACKGROUND)
+            logo_label.pack(side=tk.LEFT)
         except:
-            tk.Label(header_frame, text="ВЫПУСК.РУ",
-                     font=(FONT_FAMILY, 24, 'bold'),
-                     fg=COLOR_ACCENT_PINK, bg=COLOR_BACKGROUND).pack(side=tk.LEFT)
+            tk.Label(header_frame, text="ВЫПУСК",
+                       font=(FONT_FAMILY, 24, 'bold'),
+                       fg=COLOR_ACCENT_PINK, bg=COLOR_BACKGROUND).pack(side=tk.LEFT)
             
         row = 2
         
@@ -528,131 +561,74 @@ class FolderGeneratorApp:
                                               select_dir=True, 
                                               initial_value=self.shooting_path,
                                               on_select_callback=lambda path: self._update_paths_and_check_fields(path, 'shooting_path'))
-        self.path_shooting_sel.grid(row=row, column=0, columnspan=4, padx=10, pady=BLOCK_PADY_VERTICAL, sticky='ew')
+        self.path_shooting_sel.grid(row=row, column=0, columnspan=4, padx=10, pady=(20, 0), sticky='ew')
         row += 1
         
         # --------------------------------------------------------------------------
-        # 2. Файл отбора (ОТОБРАЖЕНИЕ)
-        # ИЗМЕНЕНИЕ: Изменена метка с "Отбор" на "Файл отбора"
+        # 2. Файл отчета (ОТОБРАЖЕНИЕ)
         # --------------------------------------------------------------------------
-        f_selection_file = PathFileSelector(main_frame, "Файл отбора", FONT_FAMILY, 
+        # ИСПРАВЛЕНИЕ: Поле пустое при старте
+        f_selection_file = PathFileSelector(main_frame, "Файл отчета", FONT_FAMILY, 
                                                select_dir=False, 
-                                               allow_multiple=False, # Только один файл
-                                               initial_value="", # Всегда пусто при старте
+                                               allow_multiple=False, 
+                                               initial_value="", 
                                                on_select_callback=lambda path: self._update_paths_and_check_fields(path, 'selection_file'))
         
-        # ИЗМЕНЕНИЕ: Меняем тип файла для диалога
         f_selection_file.select_path_or_file = lambda event=None: self._select_txt_file(f_selection_file)
 
-        f_selection_file.grid(row=row, column=0, columnspan=4, padx=10, pady=BLOCK_PADY_VERTICAL, sticky='ew')
-        f_selection_file.entry.config(cursor="hand2") 
-        
-        self.entries["Файл отбора"] = f_selection_file # Сохраняем для обновления
+        self.entries["Файл отчета"] = f_selection_file 
+        f_selection_file.grid(row=row, column=0, columnspan=4, padx=10, pady=(20, 0), sticky='ew')
         row += 1
         
         # --------------------------------------------------------------------------
-        # 3. Номер заказа и Дата (FloatingLabelEntry)
+        # 3. ПОЛЯ ДАННЫХ УДАЛЕНЫ ИЗ UI
         # --------------------------------------------------------------------------
-        dual_field_container_1 = tk.Frame(main_frame, bg=COLOR_BACKGROUND)
-        dual_field_container_1.grid(row=row, column=0, columnspan=4, sticky='ew', padx=10, pady=BLOCK_PADY_VERTICAL)
-        dual_field_container_1.grid_columnconfigure(0, weight=1)
-        dual_field_container_1.grid_columnconfigure(1, weight=0)
-        dual_field_container_1.grid_columnconfigure(2, weight=1)
-
-        f_order = FloatingLabelEntry(dual_field_container_1, "Номер заказа", FONT_FAMILY, 
-                                     initial_value=self.config_data.get('order_number', ''), 
-                                     on_change_callback=self.check_input_fields)
-        f_order.grid(row=0, column=0, sticky='ew')
-        self.entries["Номер заказа"] = f_order
-
-        tk.Frame(dual_field_container_1, width=20, bg=COLOR_BACKGROUND).grid(row=0, column=1, sticky='ns')
-
-        f_date = FloatingLabelEntry(dual_field_container_1, "Дата", FONT_FAMILY, on_change_callback=self.check_input_fields)
-        f_date.grid(row=0, column=2, sticky='ew')
-        self.entries["Дата"] = f_date
-        
-        # Устанавливаем текущую дату
-        config_date = self.config_data.get('date', datetime.datetime.now().strftime("%d.%m.%Y"))
-            
-        f_date.entry.delete(0, tk.END)
-        f_date.entry.insert(0, config_date)
-        f_date._float_label(initial_call=True)
-        f_date.entry.config(fg=COLOR_TEXT_NORMAL)
-        row += 1 
         
         # --------------------------------------------------------------------------
-        # 4. Номер школы и Класс (FloatingLabelEntry)
+        # 4. ЧЕКБОКСЫ КОПИРОВАНИЯ
         # --------------------------------------------------------------------------
-        dual_field_container_2 = tk.Frame(main_frame, bg=COLOR_BACKGROUND)
-        dual_field_container_2.grid(row=row, column=0, columnspan=4, sticky='ew', padx=10, pady=BLOCK_PADY_VERTICAL)
-        dual_field_container_2.grid_columnconfigure(0, weight=1) 
-        dual_field_container_2.grid_columnconfigure(1, weight=0)
-        dual_field_container_2.grid_columnconfigure(2, weight=1)
-
-        f_school = FloatingLabelEntry(dual_field_container_2, "Номер школы", FONT_FAMILY, 
-                                     initial_value=self.config_data.get('school_number', ''), 
-                                     on_change_callback=self.check_input_fields)
-        f_school.grid(row=0, column=0, sticky='ew')
-        self.entries["Номер школы"] = f_school
-
-        tk.Frame(dual_field_container_2, width=20, bg=COLOR_BACKGROUND).grid(row=0, column=1, sticky='ns')
-
-        f_class = FloatingLabelEntry(dual_field_container_2, "Класс", FONT_FAMILY, 
-                                     initial_value=self.config_data.get('class_name', ''), 
-                                     on_change_callback=self.check_input_fields)
-        f_class.grid(row=0, column=2, sticky='ew')
-        self.entries["Класс"] = f_class
+        copy_checkbox_container = tk.Frame(main_frame, bg=COLOR_BACKGROUND)
+        copy_checkbox_container.grid(row=row, column=0, columnspan=4, sticky='w', padx=10, pady=(15, 10))
+        
+        # 4.1 Скопировать отобранные raw
+        self.create_styled_checkbox_in_frame(copy_checkbox_container, "Скопировать отобранные raw", self.var_copy_raw_selected, 0, 0, 3, 4, 'copy')
+        
+        # 4.2 Скопировать все raw и jpg со съемки
+        self.create_styled_checkbox_in_frame(copy_checkbox_container, "Скопировать все raw и jpg со съемки", self.var_copy_all_files, 1, 0, 3, 4, 'copy')
+        
         row += 1
         
         # --------------------------------------------------------------------------
-        # 5. Чекбоксы
-        # --------------------------------------------------------------------------
-        self.checkbox_container = tk.Frame(main_frame, bg=COLOR_BACKGROUND)
-        self.checkbox_container.grid(row=row, column=0, columnspan=4, sticky='w', padx=10, pady=(20,10))
-        self.checkbox_container.grid_columnconfigure(0, weight=0)
-        self.checkbox_container.grid_columnconfigure(1, weight=0)
-        self.checkbox_container.grid_columnconfigure(2, weight=0)
-
-        self.create_styled_checkbox_in_frame(self.checkbox_container, "Цитаты", self.var_quotes, 0, 0, 1, 32)
-        tk.Frame(self.checkbox_container, width=8, bg=COLOR_BACKGROUND).grid(row=0, column=1, sticky='ns')
-        self.create_styled_checkbox_in_frame(self.checkbox_container, "Видео", self.var_video, 0, 2, 1, 4)
-        row += 1
-        
-        # --------------------------------------------------------------------------
-        # 6. Кнопки (ТРИ)
+        # 5. КНОПКА ГЕНЕРАЦИИ (Темная)
         # --------------------------------------------------------------------------
         button_container_1 = tk.Frame(main_frame, bg=COLOR_BACKGROUND, height=BUTTON_HEIGHT)
-        button_container_1.grid(row=row, column=0, columnspan=4, padx=10, pady=(15, 10), sticky='ew')
+        button_container_1.grid(row=row, column=0, columnspan=4, padx=10, pady=(10, 20), sticky='ew')
         button_container_1.pack_propagate(False)
 
         self.canvas_gen = tk.Canvas(button_container_1, bd=0, highlightthickness=0, bg=COLOR_BACKGROUND)
         self.canvas_gen.pack(fill='both', expand=True)
 
-        self.generate_button = tk.Button(state=tk.DISABLED) # Dummy
+        self.generate_button = tk.Button(state=tk.DISABLED) 
         
         self.canvas_gen.bind("<Configure>", lambda e: self.draw_button(self.canvas_gen, self.generate_button['state'], "Сгенерировать структуру"))
-        self.canvas_gen.bind("<Button-1>", lambda e: self.generate_folders() if self.generate_button['state'] == tk.NORMAL else None)
+        self.canvas_gen.bind("<Button-1>", lambda e: self._handle_generate_and_copy() if self.generate_button['state'] == tk.NORMAL and not self.is_copying else None)
         self.canvas_gen.config(cursor="hand2")
         
         row += 1
         
-        # НОВАЯ КНОПКА 2
-        button_container_2 = tk.Frame(main_frame, bg=COLOR_BACKGROUND, height=BUTTON_HEIGHT)
-        button_container_2.grid(row=row, column=0, columnspan=4, padx=10, pady=(0, 10), sticky='ew')
-        button_container_2.pack_propagate(False)
-
-        self.canvas_copy_raw = tk.Canvas(button_container_2, bd=0, highlightthickness=0, bg=COLOR_BACKGROUND)
-        self.canvas_copy_raw.pack(fill='both', expand=True)
-
-        self.copy_raw_button = tk.Button(state=tk.DISABLED) # Dummy
+        # --------------------------------------------------------------------------
+        # 6. ЧЕКБОКС: Я вывел JPG файлы
+        # --------------------------------------------------------------------------
+        jpg_export_container = tk.Frame(main_frame, bg=COLOR_BACKGROUND)
+        jpg_export_container.grid(row=row, column=0, columnspan=4, sticky='w', padx=10, pady=(0, 10))
         
-        self.canvas_copy_raw.bind("<Configure>", lambda e: self.draw_button(self.canvas_copy_raw, self.copy_raw_button['state'], "Скопировать отобранные raw"))
-        self.canvas_copy_raw.bind("<Button-1>", lambda e: self._copy_raw_files() if self.copy_raw_button['state'] == tk.NORMAL and not self.is_copying_raw else None)
-        self.canvas_copy_raw.config(cursor="hand2")
+        self.create_styled_checkbox_in_frame(jpg_export_container, "Я вывел jpg файлы", self.var_jpg_exported, 0, 0, 3, 4, 'copy')
         
         row += 1
         
-        # КНОПКА 3
+        # --------------------------------------------------------------------------
+        # 7. КНОПКА СОРТИРОВКИ (Разложить JPG)
+        # --------------------------------------------------------------------------
         button_container_3 = tk.Frame(main_frame, bg=COLOR_BACKGROUND, height=BUTTON_HEIGHT)
         button_container_3.grid(row=row, column=0, columnspan=4, padx=10, pady=(0, 15), sticky='ew')
         button_container_3.pack_propagate(False)
@@ -662,8 +638,8 @@ class FolderGeneratorApp:
 
         self.sort_button = tk.Button(state=tk.DISABLED) # Dummy
         
-        self.canvas_sort.bind("<Configure>", lambda e: self.draw_button(self.canvas_sort, self.sort_button['state'], "Разложить JPG по папкам"))
-        self.canvas_sort.bind("<Button-1>", lambda e: self._sort_jpgs_to_folders() if self.sort_button['state'] == tk.NORMAL else None)
+        self.canvas_sort.bind("<Configure>", lambda e: self.draw_button(self.canvas_sort, self.sort_button['state'], "Разложить jpg по папкам"))
+        self.canvas_sort.bind("<Button-1>", lambda e: self._handle_sort_and_move_all_raw() if self.sort_button['state'] == tk.NORMAL and not self.is_sorting_jpg and not self.is_moving_all_raw else None)
         self.canvas_sort.config(cursor="hand2")
         
         row += 1
@@ -672,8 +648,8 @@ class FolderGeneratorApp:
         # 8. Метка статуса (Внизу)
         # --------------------------------------------------------------------------
         self.status_label = tk.Label(main_frame, text="", anchor="w",
-                                     fg=COLOR_STATUS_NORMAL, bg=COLOR_BACKGROUND,
-                                     font=(FONT_FAMILY, 10))
+                                      fg=COLOR_STATUS_NORMAL, bg=COLOR_BACKGROUND,
+                                      font=(FONT_FAMILY, 10))
         self.status_label.grid(row=row, column=0, columnspan=4, sticky='ew', padx=10, pady=(10,0))
         row += 1
 
@@ -692,99 +668,145 @@ class FolderGeneratorApp:
 
     def set_default_path(self):
         """Устанавливает путь для сохранения структуры (Desktop/Home)."""
-        # ИЗМЕНЕНИЕ: output_path теперь всегда = shooting_path, но по умолчанию Desktop
-        if not self.output_path: # Устанавливаем только при запуске, если пустой
-            if sys.platform == "win32":
-                desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
-                if not os.path.exists(desktop):
-                    desktop = os.path.expanduser('~')
-            else:
-                desktop = os.path.expanduser('~')
-            self.output_path = desktop
-            
-    def select_path(self):
-        """Больше не используется, так как output_path = shooting_path"""
-        pass
-    
-    def _update_paths_and_check_fields(self, paths_or_path, identifier):
-        """Обрабатывает выбор пути к съемке или файлов отбора."""
-        if identifier == 'shooting_path':
-            self.shooting_path = paths_or_path
-            # ИЗМЕНЕНИЕ: Устанавливаем output_path
-            self.output_path = self.shooting_path
-            
-            # НОВОЕ: Автоматическое создание TXT-файла
-            self._create_selection_file_template()
-            
-            # ДОБАВЛЕНИЕ: Гарантируем, что selection_file_path установлен корректно
-            expected_path = self._get_expected_selection_file_path()
-            if expected_path:
-                self.selection_file_path = expected_path
+        desktop_path = os.path.join(os.path.expanduser('~'), 'Desktop')
+        if os.path.exists(desktop_path):
+            self.output_path = desktop_path
+        else:
+            self.output_path = os.path.expanduser('~')
+        
+    def _select_txt_file(self, file_selector_widget):
+        """Обработчик выбора TXT файла."""
+        initial_dir = os.path.expanduser('~')
+        # Если путь к съемке задан, начинаем оттуда
+        if self.shooting_path and os.path.exists(self.shooting_path):
+             initial_dir = self.shooting_path
+             
+        # Открываем диалог для выбора файла TXT
+        path_selected = filedialog.askopenfilename(
+            initialdir=initial_dir,
+            title="Выберите файл отчета",
+            filetypes=[("Текстовые файлы", "*.txt")]
+        )
+        
+        if path_selected:
+            # Обновляем виджет и запускаем колбэк
+            file_selector_widget.entry.config(state='normal')
+            file_selector_widget.entry.delete(0, tk.END)
+            file_selector_widget.entry.insert(0, os.path.basename(path_selected))
+            file_selector_widget.entry.config(state='readonly')
+            file_selector_widget._float_label(initial_call=True)
+            self._update_paths_and_check_fields(path_selected, 'selection_file')
 
-        elif identifier == 'selection_file':
-            self.selection_file_path = paths_or_path
-            
+    def _update_paths_and_check_fields(self, path, path_type):
+        """Обновляет внутренние переменные и проверяет поля."""
+        if path_type == 'shooting_path':
+            self.shooting_path = path
+            # ИСПРАВЛЕНИЕ: Гарантируем вызов создания/обновления отчета
+            self._create_selection_file_template()
+        elif path_type == 'selection_file':
+            self.selection_file_path = path
+            self._process_selection_file(path) 
+
         self.check_input_fields()
 
-    def check_input_fields(self):
-        """Проверяет заполнение полей и активирует/деактивирует кнопки."""
-        order_num = self._sanitize_folder_name(self.entries["Номер заказа"].get())
-        class_name = self._sanitize_folder_name(self.entries["Класс"].get())
-        shooting_path_valid = self.shooting_path and os.path.isdir(self.shooting_path)
+    def _process_selection_file(self, file_path):
+        """Обрабатывает TXT файл отчета и заполняет self.selection_data и self.order_params."""
+        self.selection_data = self._read_selection_from_file(file_path)
         
-        selection_file_exists = self.selection_file_path and os.path.exists(self.selection_file_path)
+        # Обновляем order_params из прочитанных данных для формирования пути
+        if self.selection_data.get("ПАРАМЕТРЫ ЗАКАЗА"):
+            params = self.selection_data["ПАРАМЕТРЫ ЗАКАЗА"]
+            
+            order_num_read = params.get("Номер заказа", "").strip()
+            date_str_read = params.get("Дата", "").strip()
+            is_partial_update = not order_num_read or not date_str_read
 
-        # --- КНОПКА 1: Сгенерировать структуру ---
-        is_gen_complete = all([order_num, class_name]) and shooting_path_valid
-        # Блокируем, если идет копирование
-        new_state_gen = tk.DISABLED if self.is_copying_raw else (tk.NORMAL if is_gen_complete else tk.DISABLED)
+            for key, value in params.items():
+                self.order_params[key] = value.strip()
+                if key in self.entries:
+                    self.entries[key] = self._create_dummy_entry(value.strip())
+            
+            if is_partial_update:
+                self._update_status("Отчет загружен, но проверьте Номер заказа и Дату.", is_error=False, color=COLOR_STATUS_INFO)
+            else:
+                self._update_status(f"Отчет загружен. Параметры заказа: {self.order_params['Номер заказа']}, {self.order_params['Дата']}.", is_error=False)
+        
+        else:
+             self._update_status(f"Отчет загружен, но раздел 'ПАРАМЕТРЫ ЗАКАЗА' не найден.", is_error=False, color=COLOR_STATUS_INFO)
+        
+    def check_input_fields(self):
+        """
+        Проверяет заполненность обязательных полей и активирует кнопки.
+        ИСПРАВЛЕНА ЛОГИКА: Кнопки активны, если ЕСТЬ путь и ЕСТЬ файл.
+        Проверка *содержимого* файла (is_order_ready) происходит при НАЖАТИИ.
+        """
+        
+        # 1. Проверка пути к съемке
+        is_path_valid = self.shooting_path and os.path.isdir(self.shooting_path)
+        
+        # Проверка отчета
+        report_exists = self.selection_file_path and os.path.exists(self.selection_file_path)
+
+        # 2. Проверка параметров (ТОЛЬКО для статуса, НЕ для блокировки кнопок)
+        order_num = self.order_params.get("Номер заказа", "").strip()
+        date_str = self.order_params.get("Дата", "").strip()
+        is_order_ready_in_memory = order_num and date_str
+             
+        # 3. Активация кнопки Генерации
+        can_copy_or_move = self.var_copy_raw_selected.get() or self.var_copy_all_files.get()
+        new_state_gen = tk.DISABLED
+        
+        # ИСПРАВЛЕНИЕ: Убрана проверка 'is_order_ready'
+        if is_path_valid and report_exists: 
+             if self.is_copying:
+                 new_state_gen = tk.DISABLED 
+             elif can_copy_or_move:
+                 if self.var_copy_raw_selected.get() and not report_exists:
+                     new_state_gen = tk.DISABLED
+                 else:
+                     new_state_gen = tk.NORMAL
+             else:
+                 new_state_gen = tk.NORMAL 
+        
+        # ИСПРАВЛЕНИЕ: Этот дублирующий блок также исправлен
+        if is_path_valid and report_exists:
+            new_state_gen = tk.NORMAL if not self.is_copying else tk.DISABLED
 
         if self.generate_button.cget('state') != new_state_gen:
             self.generate_button.config(state=new_state_gen)
             self.master.after_idle(lambda: self.draw_button(self.canvas_gen , new_state_gen, "Сгенерировать структуру"))
 
-        # --- КНОПКА 2: Скопировать RAW ---
-        is_copy_complete = all([shooting_path_valid, selection_file_exists])
-        # Блокируем, если идет копирование
-        new_state_copy = tk.DISABLED if self.is_copying_raw else (tk.NORMAL if is_copy_complete else tk.DISABLED)
+        # 4. Активация кнопки Сортировки
+        # ИСПРАВЛЕНИЕ: Здесь также убрана проверка 'is_order_ready'
+        can_sort_logic = self.var_jpg_exported.get() and is_path_valid and report_exists
+        new_state_sort = tk.DISABLED
         
-        if self.copy_raw_button.cget('state') != new_state_copy:
-            self.copy_raw_button.config(state=new_state_copy)
-            # Если идет копирование, draw_button отрисует "Копирование..."
-            self.master.after_idle(lambda: self.draw_button(self.canvas_copy_raw, new_state_copy, "Скопировать отобранные raw"))
-            
-        # --- КНОПКА 3: Разложить JPG по папкам ---
-        is_sort_complete = all([shooting_path_valid, selection_file_exists])
-        # Блокируем, если идет копирование
-        new_state_sort = tk.DISABLED if self.is_copying_raw else (tk.NORMAL if is_sort_complete else tk.DISABLED)
-
+        if can_sort_logic and not self.is_sorting_jpg and not self.is_moving_all_raw:
+            new_state_sort = tk.NORMAL
+        
         if self.sort_button.cget('state') != new_state_sort:
             self.sort_button.config(state=new_state_sort)
-            self.master.after_idle(lambda: self.draw_button(self.canvas_sort, new_state_sort, "Разложить JPG по папкам"))
+            self.master.after_idle(lambda: self.draw_button(self.canvas_sort, new_state_sort, "Разложить jpg по папкам"))
             
-        # Обновление статуса
-        if self.is_copying_raw:
-             # Не меняем статус, если он уже показывает прогресс
-             pass
-        elif not shooting_path_valid:
-             self._update_status("Выберите Путь к съемке.", is_error=True)
-        elif not selection_file_exists:
-             self._update_status("Файл 'selected.txt' не найден (выберите Путь к съемке).", is_error=True)
-        elif not order_num or not class_name:
-             self._update_status("Введите Номер заказа и Класс.", is_error=True)
-        else:
-            self._update_status("Готово к работе.", is_error=False)
+        # 5. Обновляем статус
+        if not self.is_copying and not self.is_sorting_jpg and not self.is_moving_all_raw:
+             if not is_path_valid:
+                 self._update_status("Выберите Путь к съемке.", is_error=True)
+             elif not report_exists:
+                 self._update_status("Файл отчета не найден (выберите Путь к съемке).", is_error=True)
+             elif not is_order_ready_in_memory:
+                 # Эта проверка теперь нужна ТОЛЬКО для статуса
+                 self._update_status("Заполните файл отчета.", is_error=False, color=COLOR_STATUS_INFO) 
+             elif self.var_copy_raw_selected.get() and not report_exists:
+                 self._update_status("Активировано копирование 'отобранных raw', но Отчет не найден.", is_error=True)
+             elif new_state_gen == tk.NORMAL or new_state_sort == tk.NORMAL:
+                 self._update_status("Готово к работе.", is_error=False)
 
 
-    # ====================================================================
-    # ЛОГИКА ОБРАБОТКИ ОТЧЕТА (СОЗДАНИЕ ШАБЛОНА)
-    # ====================================================================
-    
     def _get_expected_selection_file_path(self):
-        """Формирует ожидаемый путь к файлу отбора."""
+        """Формирует ожидаемый путь к файлу отчета."""
         if not self.shooting_path or not os.path.isdir(self.shooting_path):
             return None
-        # ИЗМЕНЕНИЕ: Имя файла теперь "selected.txt"
         filename = "selected.txt"
         return os.path.join(self.shooting_path, filename)
 
@@ -798,9 +820,20 @@ class FolderGeneratorApp:
         selection_path = self._get_expected_selection_file_path()
         self.selection_file_path = selection_path
         
-        # ИЗМЕНЕНИЕ: Обновленный шаблон согласно запросу пользователя
+        today = datetime.datetime.now().strftime("%d.%m.%Y")
+        
+        # ИСПРАВЛЕНИЕ: Поля пустые по умолчанию, чтобы пользователь их ввел
         mock_data = f"""# ИНСТРУКЦИЯ: Заполните этот файл вручную.
 #
+# ==================================================
+ПАРАМЕТРЫ ЗАКАЗА
+# --------------------------------------------------
+Номер заказа: 
+Дата: {today}
+Номер школы: 
+Класс: 
+# ==================================================
+
 # --------------------------------------------------
 УЧЕНИКИ
 # 5 Колонок: [Виньетка] [Портрет 1] [Портрет 2] [Друг 1] [Друг 2]
@@ -833,113 +866,71 @@ class FolderGeneratorApp:
 фон 901
 """
         try:
-            # 1. Проверяем, существует ли файл до попытки создания
             file_was_created = not os.path.exists(selection_path)
             
-            # 2. Создаем файл, только если он не существует
             if file_was_created: 
                 with open(selection_path, 'w', encoding='utf-8') as f:
                     f.write(mock_data)
             
-            # Обновляем поле "Файл отбора"
-            entry_widget = self.entries.get("Файл отбора")
+            entry_widget = self.entries.get("Файл отчета")
             if entry_widget:
                 entry_widget.entry.config(state='normal')
                 entry_widget.entry.delete(0, tk.END)
-                # Показываем только имя файла в поле ввода
                 entry_widget.entry.insert(0, os.path.basename(selection_path))
                 entry_widget.entry.config(state='readonly')
                 entry_widget._float_label(initial_call=True)
 
             
-            # 3. НОВОЕ: Открываем файл, только если он был только что создан
             if file_was_created:
                 try:
-                    # АВТОМАТИЧЕСКОЕ ОТКРЫТИЕ ФАЙЛА ДЛЯ РЕДАКТИРОВАНИЯ
                     if sys.platform == "win32": subprocess.Popen(['notepad.exe', selection_path])
                     elif sys.platform == "darwin": subprocess.Popen(["open", selection_path])
                     else: subprocess.Popen(["xdg-open", selection_path])
                     
-                    self._update_status(f"Файл отбора создан и открыт: {os.path.basename(selection_path)}.", is_error=False) 
+                    self._update_status(f"Отчет создан и открыт: {os.path.basename(selection_path)}.", is_error=False) 
                 except Exception as open_e:
-                     print(f"Ошибка при попытке открыть файл: {open_e}")
-                     self._update_status(f"Файл отбора найден, но не открыт: {os.path.basename(selection_path)}.", is_error=True) 
+                    print(f"Ошибка при попытке открыть файл: {open_e}")
+                    self._update_status(f"Отчет найден, но не открыт: {os.path.basename(selection_path)}.", is_error=True) 
             else:
-                 self._update_status(f"Файл отбора найден: {os.path.basename(selection_path)}.", is_error=False) 
+                 self._update_status(f"Отчет найден: {os.path.basename(selection_path)}.", is_error=False) 
+            
+            self._process_selection_file(selection_path)
             
         except Exception as e:
-            self._update_status(f"Ошибка создания/обновления файла отбора: {e}", is_error=True)
+            self._update_status(f"Ошибка создания/обновления отчета: {e}", is_error=True)
             
         self.check_input_fields()
 
-    # ИЗМЕНЕНИЕ: Кастомный селектор для TXT-файлов
-    def _select_txt_file(self, selector_widget):
-        """Открывает диалог выбора TXT-файла."""
-        initial_dir = self.shooting_path or os.path.expanduser('~')
-        
-        path_selected = filedialog.askopenfilename(
-            initialdir=initial_dir,
-            title="Выберите файл отбора",
-            filetypes=[("Файлы отбора", "*.txt")] # ИСПРАВЛЕНИЕ: Показываем только TXT
-        )
-        
-        if path_selected:
-            selector_widget.entry.config(state='normal')
-            selector_widget.entry.delete(0, tk.END)
-            selector_widget.entry.insert(0, os.path.basename(path_selected)) # Показываем только имя файла
-            selector_widget.entry.config(state='readonly')
-            selector_widget._float_label(initial_call=True)
-            
-            # Вызываем коллбэк
-            if selector_widget.on_select_callback:
-                selector_widget.on_select_callback(path_selected)
-                
-    # НОВОЕ: Открытие файла (для PathFileSelector)
-    def _open_selection_file(self):
-        if self.selection_file_path and os.path.exists(self.selection_file_path):
-            try:
-                # Открываем папку, в которой находится файл selected.txt
-                folder_path = os.path.dirname(self.selection_file_path)
-                if sys.platform == "win32":
-                    # На Windows пытаемся открыть папку и выделить файл (более удобный UX)
-                    subprocess.Popen(['explorer', '/select,', self.selection_file_path]) 
-                elif sys.platform == "darwin": # macOS
-                    subprocess.Popen(["open", folder_path])
-                else: # Linux/UNIX
-                    subprocess.Popen(["xdg-open", folder_path])
-            except Exception as e:
-                self._update_status(f"Не удалось открыть папку с файлом: {e}", is_error=True)
-        else:
-             self._update_status("Файл отбора не найден. Выберите 'Путь к съемке'.", is_error=True)
-
-
     def _read_selection_from_file(self, file_path=None):
-        """Читает и парсит данные из TXT-файла отбора, разделяя по категориям."""
+        """Читает и парсит данные из TXT-файла отчета, включая параметры заказа."""
         path_to_read = file_path if file_path else self.selection_file_path
         
         if not path_to_read or not os.path.exists(path_to_read):
             return {} 
 
         selection_data = {
+            "ПАРАМЕТРЫ ЗАКАЗА": {},
             "Ученики": {}, "Учителя": {}, "Общая": {}, "Групповые": {}, "Фон": {} 
         }
         current_category = None
         
         try:
-            # ИЗМЕНЕНИЕ: Используем 'utf-8-sig' для обработки BOM (от Блокнота)
+            # ИСПРАВЛЕНИЕ: Используем utf-8-sig для обработки BOM (метка Блокнота)
             with open(path_to_read, 'r', encoding='utf-8-sig') as f:
                 for line in f:
                     line = line.strip()
                     
-                    # ИЗМЕНЕНИЕ: Сначала убираем #, потом проверяем на пустоту
-                    if line.startswith('#') or line.startswith('-'):
+                    if line.startswith('#') or line.startswith('-') or line.startswith('='):
                         continue
                         
                     if not line:
                         continue
 
                     # --- 1. Определение категории ---
-                    if "УЧЕНИКИ" in line:
+                    if "ПАРАМЕТРЫ ЗАКАЗА" in line:
+                        current_category = "ПАРАМЕТРЫ ЗАКАЗА"
+                        continue
+                    elif "УЧЕНИКИ" in line:
                         current_category = "Ученики"
                         continue
                     elif "УЧИТЕЛЯ" in line:
@@ -951,242 +942,324 @@ class FolderGeneratorApp:
                     elif "ГРУППОВЫЕ" in line or "РЕПОРТАЖ" in line:
                         current_category = "Групповые"
                         continue
-                    elif "ФОН" in line: # НОВАЯ СЕКЦИЯ
+                    elif "ФОН" in line: 
                         current_category = "Фон"
                         continue
 
-                    # ИЗМЕНЕНИЕ: Логика парсинга БЕЗ двоеточия
+                    # --- 2. Парсинг: параметры заказа (КЛЮЧ: ЗНАЧЕНИЕ)
+                    if current_category == "ПАРАМЕТРЫ ЗАКАЗА":
+                        if ':' in line:
+                            key, value = line.split(':', 1)
+                            # ИСПРАВЛЕНИЕ: Гарантируем удаление всех пробелов и скрытых символов
+                            selection_data[current_category][key.strip()] = value.strip()
+                        continue
+                    
+                    # --- 3. Парсинг: Остальные категории (НОМЕРА ФАЙЛОВ)
                     if current_category:
-                        # Ищем первое число в строке
                         match = re.search(r'\d+', line)
                         
                         if not match:
-                            continue # Строка без номеров, пропускаем
+                            continue 
 
                         name_part = line[:match.start()].strip()
                         num_part = line[match.start():].strip()
                         
-                        # Если name_part пустой (например, в строке "общая 501"), 
-                        # а ключ - это сама категория (кроме учеников и учителей)
                         if not name_part and current_category not in ["Ученики", "Учителя"]:
                             name_part = current_category.lower()
-
 
                         numbers = [int(n) for n in re.findall(r'\d+', num_part) if int(n) > 0]
                         
                         if not numbers: continue 
 
-                        # --- НОВОЕ: Чтение и сохранение позиций учеников ---
                         if current_category == "Ученики":
                             student_name = self._sanitize_folder_name(name_part)
                             if student_name:
-                                # 1. Извлекаем все части (включая прочерки)
-                                # ИСПРАВЛЕНИЕ: Используем split() на чистой строке, чтобы получить части
-                                raw_line_parts = re.split(r'\s+', line)
-                                # Находим начало номеров
+                                raw_line_parts = re.split(r'[\s-]+', line)
                                 name_words_count = len(student_name.split())
                                 number_parts = raw_line_parts[name_words_count:]
                                 
-                                position_map = {} # {102: 0, 105: 1, 110: 3, 112: 4}
-                                for i, part in enumerate(number_parts):
-                                    # Нас интересуют только числа > 0
+                                position_map = {} 
+                                current_pos = 0 
+                                for part in number_parts:
                                     if part.isdigit() and int(part) > 0:
-                                         # i — это индекс позиции (0, 1, 2, 3, 4). Прочерки игнорируются при счете.
-                                         # Фактически, нам нужен i, но с учетом, что прочерки не считаются числом
-                                         # Лучше считать по порядку следования.
-                                         if i >= 5: continue # Игнорируем лишние номера
-                                         position_map[int(part)] = i 
+                                         if current_pos < 5: 
+                                            position_map[int(part)] = current_pos 
+                                         current_pos += 1
+                                    elif part == '-':
+                                       pass
                                 
-                                # Если map не пуста, добавляем ученика
                                 if position_map:
-                                    # Мы сохраняем не номера, а именно карту позиций в self.selection_map
                                     selection_data["Ученики"][student_name] = position_map
-                                    
+                                
                         else:
-                            description = self._sanitize_folder_name(name_part) # Используем name_part как ключ
+                            description = self._sanitize_folder_name(name_part) 
                             if description:
-                                # Для остальных категорий (где нет 5 позиций), сохраняем как обычно (список номеров)
                                 if description in selection_data[current_category]:
                                      selection_data[current_category][description].extend(numbers)
                                 else:
                                      selection_data[current_category][description] = numbers
-                                
+                            
         except Exception as e:
-            messagebox.showerror("Ошибка чтения", f"Не удалось прочитать или разобрать файл отбора: {e}")
+            messagebox.showerror("Ошибка чтения", f"Не удалось прочитать или разобрать файл отчета: {e}")
             return {}
             
         return selection_data
 
     # ====================================================================
-    # ЭТАП 1: ГЕНЕРАЦИЯ СТРУКТУРЫ
+    # НОВАЯ ФУНКЦИЯ ВАЛИДАЦИИ (ПО ЗАПРОСУ)
+    # ====================================================================
+
+    def _validate_order_params(self):
+        """
+        Проверяет, что все КРИТИЧНЫЕ поля из 'ПАРАМЕТРЫ ЗАКАЗА' заполнены.
+        Вызывается ПРИ НАЖАТИИ кнопки.
+        """
+        # 1. Сначала читаем/обновляем данные из файла
+        try:
+            # _process_selection_file обновит self.order_params
+            self._process_selection_file(self.selection_file_path) 
+        except Exception as e:
+             self._update_status(f"Ошибка чтения файла отчета: {e}", is_error=True)
+             messagebox.showerror("Ошибка", f"Не удалось прочитать файл отчета: {e}")
+             return False
+             
+        # 2. Список обязательных полей
+        required_fields = ["Номер заказа", "Дата", "Номер школы", "Класс"]
+        
+        # 3. Проверка
+        for field in required_fields:
+            value = self.order_params.get(field, "").strip()
+            if not value:
+                error_msg = f"Ошибка: Не заполнено поле '{field}' в файле отчета."
+                self._update_status(error_msg, is_error=True)
+                messagebox.showerror("Ошибка валидации", f"{error_msg}\n\nПожалуйста, заполните файл {os.path.basename(self.selection_file_path)} и попробуйте снова.")
+                return False # Остановка процесса
+        
+        # 4. Все поля на месте
+        return True
+
+    # ====================================================================
+    # ЭТАП 1: СГЕНЕРИРОВАТЬ СТРУКТУРУ (КОПИРОВАНИЕ и ПЕРЕМЕЩЕНИЕ)
     # ====================================================================
     
     def generate_folders(self):
-        """Запускает генерацию структуры папок."""
-        order_num = self._sanitize_folder_name(self.entries["Номер заказа"].get())
-        if not order_num:
-            messagebox.showerror("Ошибка", "Номер заказа не заполнен.")
-            return
-            
+        """Синхронная часть: Генерация структуры папок."""
+        # Используем данные из order_params (они УЖЕ проверены и загружены)
+        order_num = self._sanitize_folder_name(self.order_params.get("Номер заказа", ""))
+        
         self.output_path = self.shooting_path
-        if not self.output_path or not os.path.isdir(self.output_path):
-            messagebox.showerror("Ошибка", "Путь к съемке недействителен.")
-            return
+        
+        # self.selection_data и self.order_params УЖЕ должны быть загружены
+        # _validate_order_params -> _process_selection_file
+        
+        if not self.selection_data:
+             self._process_selection_file(self.selection_file_path)
 
-        # ИЗМЕНЕНИЕ: Читаем TXT, чтобы получить список учеников для папок
-        # (Даже если TXT пуст, мы создаем папки)
-        self.selection_data = self._read_selection_from_file()
         students_map = self.selection_data.get("Ученики", {})
         students = list(students_map.keys())
         
         # --- Создание структуры ---
-        try:
-            structure_text = self._build_structure(order_num, students)
-            self._create_folders_from_structure(self.output_path, structure_text)
-        except Exception as e:
-            messagebox.showerror("Ошибка", f"Не удалось создать структуру папок: {e}")
-            return
-            
-        self._update_status(f"УСПЕХ! Структура папок '{order_num}' создана.", is_error=False)
+        # ИСПРАВЛЕНИЕ: Используем self.master.after для обновления UI из потока
+        self.master.after(0, self._update_status, "Создание структуры папок...", False)
+        self.output_path, target_folder_path, _ = self._get_folder_paths(order_num)
+        self._create_folder_structure(target_folder_path, students)
+        
+        # ИСПРАВЛЕНИЕ: Используем self.master.after для обновления UI из потока
+        self.master.after(0, self._update_status, f"УСПЕХ! Структура папок '{target_folder_path.name}' создана.", False)
         self.save_config() 
-        
-    # ====================================================================
-    # ЭТАП 2: КОПИРОВАНИЕ RAW (С ИСПОЛЬЗОВАНИЕМ ПОТОКОВ)
-    # ====================================================================
+        return target_folder_path
 
-    def _copy_raw_files(self):
-        """Запускает копирование RAW-файлов в отдельном потоке, чтобы не блокировать UI."""
+    def _handle_generate_and_copy(self):
+        """Обрабатывает нажатие кнопки Генерация + Копирование/Перемещение."""
+        if self.is_copying:
+            return 
+            
+        # 1. НОВАЯ ВАЛИДАЦИЯ (по запросу)
+        if not self._validate_order_params():
+            return # Ошибка уже показана, процесс остановлен
+
+        # 2. Проверка пути (остается)
+        if not self.shooting_path or not self.selection_file_path:
+            self._update_status("Пожалуйста, выберите путь к съемке и Отчет.", is_error=True)
+            return
+
+        # Валидация пройдена, используем загруженные параметры
+        order_num = self.order_params.get("Номер заказа", "").strip()
         
-        # 1. Проверка и подготовка (Остается в главном потоке)
-        order_num = self._sanitize_folder_name(self.entries["Номер заказа"].get())
-        if not order_num:
-            messagebox.showerror("Ошибка", "Номер заказа не заполнен.")
+        # 3. Подготовка к потоковому копированию/перемещению
+        copy_selected = self.var_copy_raw_selected.get()
+        copy_all = self.var_copy_all_files.get()
+        
+        if copy_selected or copy_all:
+             self.is_copying = True
+             self.generate_button['state'] = tk.DISABLED
+             self.draw_button(self.canvas_gen, tk.DISABLED, "Сгенерировать структуру")
+             self.master.after(0, self._update_status, "Начало подготовки к копированию/перемещению...", False)
+             
+             shooting_path = Path(self.shooting_path)
+
+             # 4. ЛОГИКА КОПИРОВАНИЯ/ПЕРЕМЕЩЕНИЯ (в новом потоке):
+             threading.Thread(target=self._copy_move_files_task_wrapper, 
+                               args=(order_num, shooting_path)).start()
+        
+        # 5. Если копирование не выбрано (только генерация структуры)
+        else:
+             try:
+                 self.generate_folders()
+             except Exception as e:
+                 self._update_status(f"Ошибка при создании структуры папок: {e}", is_error=True)
+             self.check_input_fields()
+
+
+    def _copy_move_files_task_wrapper(self, order_num, shooting_path):
+        """
+        Обёртка для потокового выполнения задач КОПИРОВАНИЯ/ПЕРЕМЕЩЕНИЯ (Фаза 1).
+        """
+        
+        # ИСПРАВЛЕНИЕ: Генерация папок теперь происходит ВНУТРИ потока
+        try:
+            target_folder_path = self.generate_folders()
+        except Exception as e:
+            self.master.after(0, self._update_status, f"Ошибка при создании структуры папок: {e}", is_error=True)
+            self.is_copying = False
+            self.master.after(0, self.check_input_fields)
             return
             
-        # КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Проверяем, что внутренняя переменная selection_file_path установлена
-        if not self.selection_file_path or not os.path.exists(self.selection_file_path):
-             messagebox.showerror("Ошибка", "Файл отбора не найден.")
-             return
+        copy_selected = self.var_copy_raw_selected.get()
+        copy_all = self.var_copy_all_files.get()
+        
+        total_stages = 0
+        if copy_selected: total_stages += 1
+        if copy_all: total_stages += 2 
+
+        current_stage = 0
+
+        # 1. --- ЭТАП 1/3: КОПИРОВАНИЕ ОТОБРАННЫХ RAW ---
+        if copy_selected:
+            current_stage += 1
+            # self.selection_data уже загружен в generate_folders()
+            self._process_files_by_type(order_num, target_folder_path, shooting_path, stage_num=current_stage, total_stages=total_stages, file_type="selected_raw", operation=shutil.copy2)
+        
+        # 2. --- ЭТАП 2/3: ПЕРЕМЕЩЕНИЕ ВСЕХ RAW ---
+        if copy_all:
+             current_stage += 1
+             self._process_files_by_type(order_num, target_folder_path, shooting_path, stage_num=current_stage, total_stages=total_stages, file_type="all_raw", operation=shutil.move)
+
+        # 3. --- ЭТАП 3/3: ПЕРЕМЕЩЕНИЕ ВСЕХ JPG ---
+        if copy_all:
+             current_stage += 1
+             self._process_files_by_type(order_num, target_folder_path, shooting_path, stage_num=current_stage, total_stages=total_stages, file_type="all_jpg", operation=shutil.move)
+
+        # 4. Завершение
+        self.is_copying = False
+        self.master.after(0, self.check_input_fields)
+        self.master.after(0, self.draw_button, self.canvas_gen, self.generate_button['state'], "Сгенерировать структуру")
+        self.master.after(0, self._on_copy_complete_open_folder, order_num, copy_selected)
+
+    def _process_files_by_type(self, order_num, target_folder_path, shooting_path, stage_num, total_stages, file_type, operation):
+        """
+        Универсальная функция для выполнения одного этапа КОПИРОВАНИЯ/ПЕРЕМЕЩЕНИЯ.
+        ИСПРАВЛЕНА: Добавлены статусы "Поиск...".
+        """
+        
+        # 1. Определение источников и назначений
+        if file_type == "selected_raw":
+            # ИСПРАВЛЕНИЕ: Немедленное обновление статуса
+            self.master.after(0, self._update_status, f"[Этап {stage_num}/{total_stages}] Поиск отобранных RAW...", color=COLOR_STATUS_INFO)
             
-        self.output_path = self.shooting_path
-        if not self.output_path or not os.path.isdir(self.output_path):
-            messagebox.showerror("Ошибка", "Путь к съемке недействителен.")
-            return
-        
-        # 2. Блокировка UI
-        self.is_copying_raw = True # Установка флага
-        self.check_input_fields() # Обновление состояния кнопок
-        self.draw_button(self.canvas_copy_raw, tk.DISABLED, "Копирование...") # Принудительная перерисовка
-        self.master.after(0, self._update_status, "Начало подготовки к копированию...", False)
-
-        # 3. Запуск задачи в отдельном потоке
-        copy_thread = threading.Thread(target=self._copy_raw_files_task, args=(order_num,))
-        copy_thread.start()
-
-    def _copy_raw_files_task(self, order_num):
-        """Фоновая задача: Копирует отобранные RAW-файлы."""
-        
-        # Чтение данных 
-        self.selection_data = self._read_selection_from_file()
-        
-        # Проверяем, что хотя бы ОДНА секция заполнена
-        if not any(self.selection_data.values()):
-             # Schedule error message on main thread
-             self.master.after(0, self._on_copy_raw_complete, "Ошибка: Файл отбора пуст. Заполните TXT-файл.", True, order_num)
-             return
+            target_dir = Path(target_folder_path) / f"{order_num} дубли равы" / "отобранный материал"
+            stage_name = "RAW (Отбор)"
             
-        # --- 3. Копирование отобранных RAW-файлов ---
-        raw_copy_count = 0
-        
-        # КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Убеждаемся, что папка структуры создана
-        # (на случай, если пользователь пропустил шаг 1)
-        base_folder_path = os.path.join(self.output_path, order_num)
-        target_raw_dir = os.path.join(base_folder_path, f"{order_num} дубли равы", "отобранный материал")
+            selected_numbers = []
+            for category, items in self.selection_data.items():
+                if category in ["Ученики", "Учителя", "Общая", "Групповые", "Фон"]:
+                    for description, numbers_or_map in items.items():
+                        if isinstance(numbers_or_map, dict):
+                            selected_numbers.extend(numbers_or_map.keys())
+                        else:
+                            selected_numbers.extend(numbers_or_map)
+            
+            unique_file_numbers = sorted(list(set(selected_numbers))) 
+            files_to_process = [self._find_file_by_number(shooting_path, num) for num in unique_file_numbers if self._find_file_by_number(shooting_path, num)]
+            files_to_copy = [os.path.basename(f) for f in files_to_process if f]
 
-        if not os.path.isdir(target_raw_dir):
-            try:
-                os.makedirs(target_raw_dir, exist_ok=True)
-            except Exception as e:
-                self.master.after(0, self._on_copy_raw_complete, f"Ошибка создания папки 'отобранный материал': {e}", True, order_num)
-                return
-        
-        all_files_to_copy = []
-        for category, items in self.selection_data.items():
-            for description_or_name, numbers_or_map in items.items():
-                if isinstance(numbers_or_map, dict):
-                    all_files_to_copy.extend(numbers_or_map.keys())
-                else:
-                    all_files_to_copy.extend(numbers_or_map)
-        
-        unique_file_numbers = sorted(list(set(all_files_to_copy))) 
-        not_found_files = []
+        elif file_type == "all_raw":
+            # ИСПРАВЛЕНИЕ: Немедленное обновление статуса
+            self.master.after(0, self._update_status, f"[Этап {stage_num}/{total_stages}] Поиск ВСЕХ RAW...", color=COLOR_STATUS_INFO)
+            
+            target_dir = Path(target_folder_path) / f"{order_num} дубли равы" / "дубли"
+            stage_name = "RAW (Все)"
+            files_to_copy = [f for f in os.listdir(shooting_path) if Path(f).suffix.lower() in RAW_EXTENSIONS and Path(shooting_path / f).is_file()]
 
-        total_files = len(unique_file_numbers)
-        # Статус 0%
-        self.master.after(0, self._update_status, f"0%: Ожидание начала копирования ({total_files} RAW-файлов)...", False)
+        elif file_type == "all_jpg":
+            # ИСПРАВЛЕНИЕ: Немедленное обновление статуса
+            self.master.after(0, self._update_status, f"[Этап {stage_num}/{total_stages}] Поиск ВСЕХ JPG...", color=COLOR_STATUS_INFO)
+            
+            target_dir = Path(target_folder_path) / f"{order_num} дубли"
+            stage_name = "JPG (Все)"
+            files_to_copy = [f for f in os.listdir(shooting_path) if Path(f).suffix.lower() in ['.jpg', '.jpeg'] and Path(shooting_path / f).is_file()]
+        else:
+             return
 
-        for i, num in enumerate(unique_file_numbers):
-            source_file = self._find_file_by_number(self.shooting_path, num)
-            if source_file:
+        # 2. Выполнение операции
+        processed_count = 0
+        total_files = len(files_to_copy)
+        Path(target_dir).mkdir(parents=True, exist_ok=True)
+        operation_name = "Копирование" if operation == shutil.copy2 else "Перемещение"
+        
+        for i, filename in enumerate(files_to_copy):
+            if not self.is_copying: break 
+            
+            source_path = Path(shooting_path) / filename
+            target_path = Path(target_dir) / filename
+            
+            if source_path.is_file():
                 try:
-                    # Расчет прогресса (с округлением)
-                    progress_percent = int(((i + 1) / total_files) * 100)
-                    file_name = os.path.basename(source_file)
-                    
-                    # Thread-safe status update: % и имя файла
-                    status_msg = f"{progress_percent}%: Копирование {file_name}..."
-                    self.master.after(0, self._update_status, status_msg, False)
-                    
-                    shutil.copy2(source_file, target_raw_dir) 
-                    raw_copy_count += 1
+                    if operation == shutil.move:
+                        if target_path.exists():
+                           target_path.unlink() 
+                           
+                    operation(source_path, target_path)
+                    processed_count += 1
                 except Exception as e:
-                    print(f"Ошибка копирования {source_file}: {e}")
-            else:
-                not_found_files.append(str(num))
-                        
-        # --- Финальные обновления статуса и завершение ---
-        if not_found_files:
-             # Schedule warning messagebox display (messagebox is thread-safe on many OSes, but scheduling is safest)
-             self.master.after(0, messagebox.showwarning, "Внимание", f"Не удалось найти следующие номера файлов: {', '.join(not_found_files)}")
+                    self.master.after(0, self._update_status, f"[{stage_num}/{total_stages}] Ошибка {operation_name} {filename}: {e}", is_error=True)
             
-        final_msg = f"УСПЕХ! Скопировано {raw_copy_count} RAW."
-        self.master.after(0, self._on_copy_raw_complete, final_msg, False, order_num)
-
-    def _on_copy_raw_complete(self, message, is_error, order_num):
-        """Восстанавливает UI, показывает финальный статус и открывает папку (вызывается в основном потоке)."""
+            # Обновляем статус только каждые N файлов, чтобы не тормозить UI
+            if i % 5 == 0 or (i + 1) == total_files:
+                progress = int((i + 1) / total_files * 100)
+                self.master.after(0, self._update_status, f"[Этап {stage_num}/{total_stages}] {operation_name} {stage_name}: {progress}% ({i+1}/{total_files} файлов)", color=COLOR_STATUS_INFO)
         
-        # 1. Восстановление кнопок и статуса
-        self.is_copying_raw = False # Снятие флага
-        self.check_input_fields() # Восстановление состояния кнопок
-        self.draw_button(self.canvas_copy_raw, tk.NORMAL, "Скопировать отобранные raw")
-        self._update_status(message, is_error=is_error)
+        self.master.after(0, self._update_status, f"{operation_name} {stage_name} завершено ({processed_count} файлов).", is_error=False)
 
-        # 2. Открытие папки (только при успехе)
-        if not is_error:
-            target_raw_dir = os.path.join(self.output_path, order_num, f"{order_num} дубли равы", "отобранный материал")
+
+    def _on_copy_complete_open_folder(self, order_num, open_selected_raw_folder):
+        """Восстанавливает UI и открывает папку."""
+        
+        self.is_copying = False
+        self.check_input_fields()
+        
+        if open_selected_raw_folder:
+            # Открываем папку с отобранным материалом, если было выбрано
+            order_path_name = self._get_folder_paths(order_num)[1]
+            target_raw_dir = order_path_name / f"{order_num} дубли равы" / "отобранный материал"
             
-            # --- КРИТИЧЕСКАЯ ПРОВЕРКА ПУТИ ---
-            if not os.path.isdir(target_raw_dir):
-                 self.master.after(0, self._update_status, f"Ошибка: Целевая папка '{target_raw_dir}' не найдена для открытия.", True)
-                 return
-                 
-            self._update_status(f"Открытие папки 'отобранный материал'...", is_error=False) 
-            try:
-                # УЛУЧШЕННЫЙ ВЫЗОВ ДЛЯ WINDOWS
-                if sys.platform == "win32":
-                    # Используем startfile, который более надежен для открытия папок по абсолютному пути
-                    os.startfile(target_raw_dir)
-                elif sys.platform == "darwin": # macOS
-                    subprocess.Popen(["open", target_raw_dir])
-                else: # Linux/UNIX
-                    subprocess.Popen(["xdg-open", target_raw_dir])
-            except Exception as e:
-                print(f"Ошибка при попытке открыть папку: {e}")
-                self.master.after(0, self._update_status, "Папка создана, но не открыта автоматически.", True)
+            if target_raw_dir.is_dir():
+                 self.master.after(0, self._update_status, f"Открытие папки 'отобранный материал'...", is_error=False) 
+                 try:
+                     if sys.platform == "win32":
+                         os.startfile(target_raw_dir)
+                     elif sys.platform == "darwin": 
+                         subprocess.Popen(["open", target_raw_dir])
+                     else: 
+                         subprocess.Popen(["xdg-open", target_raw_dir])
+                 except Exception as e:
+                     print(f"Ошибка при попытке открыть папку: {e}")
+                     self.master.after(0, self._update_status, "Папка создана, но не открыта автоматически.", True)
         
     def _find_file_by_number(self, directory, number):
         """
         Ищет файл в директории по номеру, игнорируя расширение, но ПРЕДПОЧИТАЯ RAW.
+        ИСПРАВЛЕНА ОШИБКА REGEX
         """
         if not directory or not os.path.isdir(directory):
             return None
@@ -1197,170 +1270,202 @@ class FolderGeneratorApp:
             name_without_ext, ext = os.path.splitext(filename)
             ext_lower = ext.lower()
             
-            # 1. Проверяем, является ли файл RAW
             if ext_lower not in RAW_EXTENSIONS:
                  continue
                  
-            # 2. Проверяем совпадение номера (более надежная логика для ANT00102)
-            
-            # Поиск в конце имени файла: ищем номер (до 5 цифр)
-            match = re.search(r'(\d{1,5})$', name_without_ext)
+            # ИСПРАВЛЕНИЕ: Ищем 1+ цифр (\d+), а не 1-5 (\d{1,5})
+            match = re.search(r'(\d+)$', name_without_ext) 
             
             if match:
                  found_number = match.group(1)
-                 # Проверяем на прямое совпадение числами (например, 102 == 102)
+                 
                  if int(found_number) == number:
                      return os.path.join(directory, filename)
                      
-                 # Проверяем на совпадение с ведущими нулями (например, 00102 == 102)
                  if found_number.lstrip('0') == target_filename_part:
                      return os.path.join(directory, filename)
                      
-        print(f"Внимание: Файл с номером {number} (RAW) не найден в {directory}")
+            if name_without_ext.endswith(target_filename_part):
+                idx = name_without_ext.rfind(target_filename_part)
+                if idx == 0 or not name_without_ext[idx-1].isdigit():
+                     return os.path.join(directory, filename)
+                     
+            for z in [3, 4, 5]:
+                padded_num = target_filename_part.zfill(z)
+                if name_without_ext.endswith(padded_num):
+                    return os.path.join(directory, filename)
+                    
         return None
 
-    def _build_structure(self, order_num, students):
-        """Формирует текстовое описание структуры папок для создания."""
-        tab = "    "
-        school_num = self._sanitize_folder_name(self.entries["Номер школы"].get())
-        date = self._sanitize_folder_name(self.entries["Дата"].get())
-        class_name = self._sanitize_folder_name(self.entries["Класс"].get())
+    # ====================================================================
+    # ФУНКЦИИ СТРУКТУРЫ ПАПОК (ВОССТАНОВЛЕННАЯ ЛОГИКА)
+    # ====================================================================
+
+    def _get_folder_paths(self, order_num):
+        """Возвращает пути для генерации структуры (ВОССТАНОВЛЕННАЯ ЛОГИКА)."""
         
-        lines = [
-            order_num,
-            f"{tab}{order_num}", 
-            f"{tab*2}{school_num}", 
-            f"{tab*3}{date}", 
-            f"{tab*4}{class_name}",
-            f"{tab*5}доки", 
-            f"{tab*5}здание", 
-            f"{tab*5}общая", 
-            f"{tab*5}репортаж", 
-            f"{tab*5}учителя", 
-            f"{tab*5}фон",
-            f"{tab*5}ученики"
-        ]
+        output_base_dir = Path(self.output_path)
         
-        # Добавляем папки для каждого ученика
+        # ИСПРАВЛЕНИЕ: Главная папка - только номер заказа
+        target_folder_path = output_base_dir / self._sanitize_folder_name(order_num)
+        
+        # Внутренняя папка заказа (для сортировки)
+        date_str = self.order_params.get("Дата", "").strip()
+        school_str = self.order_params.get("Номер школы", "").strip()
+        class_str = self.order_params.get("Класс", "").strip()
+        
+        # Путь к папке, куда будут сортироваться JPG
+        sort_target_base = target_folder_path / order_num / school_str / date_str / class_str
+
+        return output_base_dir, target_folder_path, sort_target_base
+
+    def _create_folder_structure(self, target_folder_path, students):
+        """Создает необходимую структуру папок (ВОССТАНОВЛЕННАЯ ЛОГИКА)."""
+        
+        target_folder_path.mkdir(parents=True, exist_ok=True)
+        
+        # Используем параметры из словаря
+        order_num = self.order_params.get("Номер заказа", "").strip()
+        school_num = self.order_params.get("Номер школы", "").strip()
+        date = self.order_params.get("Дата", "").strip()
+        class_name = self.order_params.get("Класс", "").strip()
+
+        # Создаем вложенную структуру
+        base_material_folder = Path(target_folder_path) / order_num / school_num / date / class_name
+        
+        (base_material_folder / "доки").mkdir(parents=True, exist_ok=True)
+        (base_material_folder / "здание").mkdir(parents=True, exist_ok=True)
+        (base_material_folder / "общая").mkdir(parents=True, exist_ok=True)
+        (base_material_folder / "репортаж").mkdir(parents=True, exist_ok=True)
+        (base_material_folder / "учителя").mkdir(parents=True, exist_ok=True)
+        (base_material_folder / "фон").mkdir(parents=True, exist_ok=True)
+        
+        # Папки учеников
+        student_folder = base_material_folder / "ученики"
+        student_folder.mkdir(parents=True, exist_ok=True)
         for s in students:
-            lines.append(f"{tab*6}{s}")
-            
-        if self.var_quotes.get():
-            lines.append(f"{tab*5}цитаты")
-        if self.var_video.get():
-            lines.append(f"{tab*5}видео")
-            
-        lines.extend([
-            f"{tab}{order_num} дубли",
-            f"{tab}{order_num} дубли равы", 
-            f"{tab*2}дубли",
-            f"{tab*2}отобранный материал"
-        ])
-        
-        return "\n".join(lines)
-        
-    def _create_folders_from_structure(self, root_path, structure_text):
-        """Создает папки на основе текстового описания структуры."""
-        lines = structure_text.splitlines()
-        depth_to_path = {0: root_path}
-        
-        for line in lines:
-            new_depth = len(line) - len(line.lstrip())
-            new_depth = new_depth // 4
-            
-            folder_name = line.strip()
-            
-            parent_path = None
-            for i in range(new_depth - 1, -1, -1):
-                if i in depth_to_path:
-                    parent_path = depth_to_path[i]
-                    break
-            
-            if not parent_path:
-                parent_path = root_path
+            (student_folder / s).mkdir(exist_ok=True)
 
-            folder_path = os.path.join(parent_path, folder_name)
-            os.makedirs(folder_path, exist_ok=True)
-            depth_to_path[new_depth] = folder_path
+        # Папки для дубликатов (в корневой папке заказа)
+        Path(target_folder_path / f"{order_num} дубли").mkdir(exist_ok=True) 
+        Path(target_folder_path / f"{order_num} дубли равы" / "дубли").mkdir(parents=True, exist_ok=True) 
+        Path(target_folder_path / f"{order_num} дубли равы" / "отобранный материал").mkdir(parents=True, exist_ok=True) 
+        
+        # ИСПРАВЛЕНИЕ: Используем self.master.after для обновления UI из потока
+        self.master.after(0, self._update_status, "Структура папок создана успешно.", False)
 
-    def _reset_ui(self):
-        """Сбрасывает все поля ввода и флаги после успешной генерации."""
-        
-        # ИЗМЕНЕНИЕ: Обновляем список ключей, чтобы использовать "Файл отбора"
-        keys_to_reset = ["Номер заказа", "Номер школы", "Класс", "Дата", "Файл отбора", "Выберите путь к съемке"]
-        for key in keys_to_reset:
-            if key in self.entries:
-                entry_widget = self.entries[key].entry
-                entry_widget.config(state='normal') # Разблокируем для сброса
-                entry_widget.delete(0, tk.END)
-                self.entries[key]._sink_label()
-        
-        # 2. Восстанавливаем текущую дату
-        f_date = self.entries["Дата"]
-        today_str = datetime.datetime.now().strftime("%d.%m.%Y")
-        f_date.entry.insert(0, today_str)
-        f_date._float_label(initial_call=True)
 
-        # 3. Сбрасываем переменные состояния
-        self.shooting_path = ""
-        self.selection_file_path = None
-        self.selection_data = {}
-        
-        # 4. Сбрасываем PathSelector (Путь к съемке)
-        if self.path_shooting_sel:
-             self.path_shooting_sel.entry.config(state='normal')
-             self.path_shooting_sel.entry.delete(0, tk.END)
-             self.path_shooting_sel.entry.config(state='readonly')
-             self.path_shooting_sel._sink_label()
+    # ====================================================================
+    # ЭТАП 2: РАЗЛОЖИТЬ JPG ПО ПАПКАМ (СОРТИРОВКА)
+    # ====================================================================
 
-        # 5. Сбрасываем Чекбоксы
-        self.var_quotes.set(False)
-        self.var_video.set(False)
+    def _handle_sort_and_move_all_raw(self):
+        """Обрабатывает нажатие кнопки Сортировка JPG."""
+        if self.is_sorting_jpg or self.is_moving_all_raw:
+            return
+
+        # 1. НОВАЯ ВАЛИДАЦИЯ (по запросу)
+        if not self._validate_order_params():
+            return # Ошибка уже показана, процесс остановлен
+
+        # Валидация пройдена, используем загруженные параметры
+        order_num = self.order_params.get("Номер заказа", "").strip()
         
+        # ИСПРАВЛЕНИЕ: Используем _get_folder_paths для получения правильного пути
+        _, main_order_folder, _ = self._get_folder_paths(order_num)
+        
+        if not main_order_folder.is_dir():
+             messagebox.showerror("Ошибка", f"Основная папка заказа не найдена. Сначала выполните 'Сгенерировать структуру'.")
+             self._update_status("Сортировка отменена.", is_error=True)
+             return
+
+        source_material_dir = main_order_folder / f"{order_num} дубли равы" / "отобранный материал"
+        
+        if not source_material_dir.is_dir():
+             messagebox.showerror("Ошибка", "Папка 'отобранный материал' не найдена. Убедитесь, что вы выполнили копирование.")
+             self._update_status("Сортировка отменена.", is_error=True)
+             return
+
+        jpg_files_to_move = [f for f in os.listdir(source_material_dir) if Path(f).suffix.lower() in ['.jpg', '.jpeg']]
+        
+        if not jpg_files_to_move:
+             messagebox.showwarning("Внимание", "В папке 'отобранный материал' не найдены JPG файлы. Сортировка невозможна.")
+             self._update_status("Сортировка отменена: JPG файлы не найдены.", is_error=True)
+             return
+
+
+        # 3. Загружаем данные для сортировки (selection_data уже загружен)
+        if not any(self.selection_data.values()):
+             self._update_status("Отчет пуст. Невозможно выполнить сортировку.", is_error=True)
+             return
+
+        # 4. Получение путей
+        self.output_path, target_folder_path, _ = self._get_folder_paths(order_num)
+
+        # 5. ЛОГИКА ПЕРЕМЕЩЕНИЯ (в потоке)
+        self.is_sorting_jpg = True
         self.check_input_fields()
-        self._update_status("Сброс выполнен. Введите данные для нового заказа.", is_error=False)
-        self.master.focus_set()
 
-
-    # ====================================================================
-    # ЭТАП 3: РАЗЛОЖИТЬ JPG ПО ПАПКАМ (СОРТИРОВКА)
-    # ====================================================================
-
-    def _get_renamed_path_and_folder(self, base_dir, filename, student_name, file_number, position_map):
-        """
-        Определяет целевую папку и НОВОЕ ИМЯ для файла ученика.
-        Возвращает (target_folder, new_filename).
-        """
-        # Позиции 0, 1, 2 = переименовываются
-        # Позиции 3, 4 = сохраняют оригинальное имя
+        threading.Thread(target=self._sort_jpg_files_task, args=(target_folder_path,)).start()
         
-        position_index = position_map.get(file_number)
-        original_ext = os.path.splitext(filename)[1]
+    def _sort_jpg_files_task(self, target_folder_path):
+        """Задача: Сортировка JPG файлов и их переименование (ПЕРЕМЕЩЕНИЕ)."""
         
-        target_folder = os.path.join(base_dir, "ученики", student_name)
-        new_filename = filename # Default: оригинальное имя
+        sorted_count = 0
+        
+        try:
+            order_num = self.order_params.get("Номер заказа", "").strip()
+            # ИСПРАВЛЕНИЕ: Целевая папка для сортировки (старая структура)
+            base_sort_dir = Path(target_folder_path) / order_num / self.order_params.get("Номер школы", "").strip() / self.order_params.get("Дата", "").strip() / self.order_params.get("Класс", "").strip()
+            
+            source_material_dir = Path(target_folder_path) / f"{order_num} дубли равы" / "отобранный материал"
 
-        if position_index is not None:
-            if 0 <= position_index <= 2:
-                # Виньетка (0), Портрет 1 (1), Портрет 2 (2)
-                type_key = STUDENT_POSITIONS[position_index]
+            jpg_files_to_move = [f for f in os.listdir(source_material_dir) if Path(f).suffix.lower() in ['.jpg', '.jpeg']]
+            total_files = len(jpg_files_to_move)
+            
+            # self.selection_data уже загружен
+            students_map = self.selection_data.get("Ученики", {})
+            teachers_map = self.selection_data.get("Учителя", {})
+            general_map = self.selection_data.get("Общая", {})
+            group_map = self.selection_data.get("Групповые", {})
+            font_map = self.selection_data.get("Фон", {})
+            
+            for i, filename in enumerate(jpg_files_to_move):
+                if not self.is_sorting_jpg: break 
                 
-                if type_key == "Виньетка":
-                    # 1-я позиция: Имя Фамилия.JPG (Убрано слово "Виньетка")
-                    new_filename = f"{student_name}{original_ext}"
-                elif type_key.startswith("ЛР"):
-                    # 2-я позиция: ЛР_Имя Фамилия.JPG
-                    new_filename = f"ЛР_{student_name}{original_ext}"
-                elif type_key.startswith("ЛС"):
-                    # 3-я позиция: ЛС_Имя Фамилия.JPG
-                    new_filename = f"ЛС_{student_name}{original_ext}"
+                source_path = source_material_dir / filename
                 
-            elif position_index in [3, 4]:
-                # 4-я и 5-я позиции (Друг 1, Друг 2)
-                # Требуется сохранить исходное имя файла (ANT00110.JPG)
-                new_filename = filename # Оригинальное имя
+                progress_percent = int(((i + 1) / total_files) * 100)
+                self.master.after(0, self._update_status, f"Сортировка JPG: {progress_percent}% ({filename})...", False)
+
+                target_sub_dir, new_filename, is_friend_photo = self._get_target_directory(
+                    base_sort_dir, filename, 
+                    students_map, teachers_map, general_map, group_map, font_map
+                )
                 
-        return target_folder, new_filename
+                final_target_path = Path(target_sub_dir) / new_filename
+                Path(target_sub_dir).mkdir(parents=True, exist_ok=True)
+                
+                # Операция: Перемещение/Вырезание (shutil.move)
+                
+                try:
+                    shutil.move(source_path, final_target_path)
+                    sorted_count += 1
+                except FileNotFoundError:
+                     print(f"Предупреждение: Файл {filename} уже перемещен или не существует.")
+                except Exception as e:
+                    self.master.after(0, messagebox.showerror, "Ошибка сортировки", f"Не удалось переместить {filename}: {e}")
+                    print(f"Ошибка перемещения {filename}: {e}")
+            
+            self.master.after(0, self._update_status, f"Сортировка JPG завершена. Перемещено {sorted_count} файлов.", is_error=False)
+            
+        except Exception as e:
+            self.master.after(0, self._update_status, f"Критическая ошибка при сортировке JPG: {e}", is_error=True)
+        finally:
+            self.is_sorting_jpg = False
+            self.check_input_fields()
+            
+            self.master.after(0, self._update_status, f"Разложить JPG по папкам завершено.", is_error=False)
 
 
     def _get_target_directory(self, base_dir, filename, students_map, teachers_map, general_map, group_map, font_map):
@@ -1372,13 +1477,10 @@ class FolderGeneratorApp:
         original_filename_no_ext = os.path.splitext(filename)[0]
         
         # 1. Извлекаем номер из имени JPG-файла
-        # Используем более точное извлечение номера (последняя последовательность цифр)
         match_num = re.search(r'(\d+)(?!.*\d)', original_filename_no_ext)
         file_number = int(match_num.group(1)) if match_num else None
         
-        # Если номер не найден, мы не можем сортировать по данным из TXT
         if not file_number:
-            # Fallback для JPG без номеров в имени (редкий случай)
             return os.path.join(base_dir, "общая"), filename, False
 
         # --- 1.1. Поиск по УЧЕНИКАМ (используя карту позиций) ---
@@ -1395,14 +1497,12 @@ class FolderGeneratorApp:
         # --- 1.2. Поиск по УЧИТЕЛЯМ ---
         for teacher_key, numbers in teachers_map.items():
             if file_number in numbers:
-                # Извлекаем ФИО учитель Предмет
                 teacher_description = self._sanitize_folder_name(teacher_key)
                 original_ext = os.path.splitext(filename)[1]
-                new_filename = f"{teacher_description}{original_ext}" # Новое имя: ФИО учитель Предмет.JPG
+                new_filename = f"{teacher_description}{original_ext}" 
                 return os.path.join(base_dir, 'учителя'), new_filename, False
 
         # --- 1.3. Поиск по ОБЩАЯ/РЕПОРТАЖ/ФОН ---
-        # Здесь оставляем оригинальное имя файла (filename), но добавляем префикс для сортировки
         for category_name, category_map in {
             "общая": general_map, 
             "репортаж": group_map, 
@@ -1410,13 +1510,10 @@ class FolderGeneratorApp:
         }.items():
             for description, numbers in category_map.items():
                  if file_number in numbers:
-                     # Для этих файлов имя = Префикс_ОригинальноеИмя
-                     new_filename = f"{description}_{filename}" # Используем описание из TXT в качестве префикса
+                     new_filename = f"{description}_{filename}" 
                      return os.path.join(base_dir, category_name), new_filename, False
         
         # --- 2. Fallback для файлов без номеров или без совпадений ---
-
-        # Имитируем префиксы для (Здание)
         if filename.lower().startswith('зд_'):
             return os.path.join(base_dir, 'здание'), filename, False
 
@@ -1424,123 +1521,41 @@ class FolderGeneratorApp:
         return os.path.join(base_dir, "общая"), filename, False
 
 
-    def _sort_jpgs_to_folders(self):
-        """Запускает перемещение JPG-файлов из отобранного материала в целевые папки."""
+    def _get_renamed_path_and_folder(self, base_dir, filename, student_name, file_number, position_map):
+        """
+        Определяет целевую папку и НОВОЕ ИМЯ для файла ученика.
+        Возвращает (target_folder, new_filename).
+        """
+        position_index = position_map.get(file_number)
+        original_ext = os.path.splitext(filename)[1]
         
-        # ИЗМЕНЕНИЕ: Устанавливаем output_path = shooting_path
-        self.output_path = self.shooting_path
-        if not self.output_path or not os.path.isdir(self.output_path):
-            messagebox.showerror("Ошибка", "Путь к съемке недействителен.")
-            return
+        target_folder = os.path.join(base_dir, "ученики", student_name)
+        new_filename = filename # Default: оригинальное имя
 
-        order_num = self._sanitize_folder_name(self.entries["Номер заказа"].get())
-        if not order_num:
-            messagebox.showerror("Ошибка", "Номер заказа не заполнен.")
-            return
-            
-        # ИЗМЕНЕНИЕ: Обновляем путь к файлу отбора
-        self.selection_file_path = self.entries.get("Файл отбора").get()
-        
-        if not self.selection_file_path or not os.path.exists(self.selection_file_path):
-             messagebox.showerror("Ошибка", "Файл отбора не найден.\n"
-                                     "Убедитесь, что 'Номер заказа' верный и выберите 'Путь к съемке'.")
-             return
-
-        self.selection_data = self._read_selection_from_file()
-        students_map = self.selection_data.get("Ученики", {})
-        teachers_map = self.selection_data.get("Учителя", {})
-        general_map = self.selection_data.get("Общая", {})
-        group_map = self.selection_data.get("Групповые", {})
-        font_map = self.selection_data.get("Фон", {}) # НОВАЯ СТРОКА
-
-        if not students_map and not teachers_map and not general_map and not group_map and not font_map:
-            messagebox.showerror("Ошибка", "Не найдены данные в файле отбора. Проверьте TXT-файл.")
-            return
-
-        # 1. Определяем базовый путь, куда будут перемещаться файлы (папка [Класс])
-        school_num = self._sanitize_folder_name(self.entries["Номер школы"].get())
-        date = self._sanitize_folder_name(self.entries["Дата"].get())
-        class_name = self._sanitize_folder_name(self.entries["Класс"].get())
-
-        base_target_dir = os.path.join(
-            self.output_path, order_num, order_num, school_num, date, class_name
-        )
-        
-        if not os.path.isdir(base_target_dir):
-            messagebox.showerror("Ошибка", f"Базовая папка структуры не найдена. Сначала выполните 'Сгенерировать структуру': {base_target_dir}")
-            return
-            
-        # 2. Определяем исходный путь, откуда будем ВЫРЕЗАТЬ JPG
-        source_material_dir = os.path.join(self.output_path, order_num, f"{order_num} дубли равы", "отобранный материал")
-
-        if not os.path.isdir(source_material_dir):
-            messagebox.showerror("Ошибка", f"Папка 'отобранный материал' не найдена. Возможно, вы не выполнили 'Скопировать отобранные raw': {source_material_dir}")
-            return
-            
-        # 3. Сканирование и перемещение
-        moved_count = 0
-        
-        # ИЗМЕНЕНИЕ: Получаем список файлов ДО цикла для статуса
-        jpg_files_to_move = [f for f in os.listdir(source_material_dir) if f.lower().endswith(('.jpg', '.jpeg'))]
-        total_files = len(jpg_files_to_move)
-        self._update_status(f"Сортировка 0/{total_files} JPG-файлов...", is_error=False)
-
-        try:
-            for i, filename in enumerate(jpg_files_to_move):
-                source_path = os.path.join(source_material_dir, filename)
+        if position_index is not None:
+            if 0 <= position_index <= 2:
+                type_key = STUDENT_POSITIONS[position_index]
                 
-                # ИЗМЕНЕНИЕ: Обновляем статус
-                self._update_status(f"Сортировка {i+1}/{total_files}: {filename}...", is_error=False)
-
-                # Получаем целевую папку, НОВОЕ ИМЯ и ФЛАГ, является ли это фото друга
-                target_folder, new_filename, is_friend_photo = self._get_target_directory(
-                    base_target_dir, filename, 
-                    students_map, teachers_map, general_map, group_map,
-                    font_map
-                )
+                if type_key == "Виньетка":
+                    new_filename = f"{student_name}{original_ext}"
+                elif type_key.startswith("ЛР"):
+                    new_filename = f"ЛР_{student_name}{original_ext}"
+                elif type_key.startswith("ЛС"):
+                    new_filename = f"ЛС_{student_name}{original_ext}"
                 
-                # Конечный путь для перемещения/копирования
-                target_path = os.path.join(target_folder, new_filename)
+            elif position_index in [3, 4]:
+                new_filename = filename 
                 
-                # Определяем операцию: копирование для общих файлов (друзей) или перемещение для уникальных
-                operation = shutil.copy2 if is_friend_photo else shutil.move # NEW LINE
-                
-                # *** КРИТИЧНОЕ ИСПРАВЛЕНИЕ ДЛЯ ПЕРЕЗАПИСИ ***
-                if os.path.exists(target_path):
-                    name_base, name_ext = os.path.splitext(new_filename)
-                    count = 1
-                    while os.path.exists(os.path.join(target_folder, f"{name_base}_{count}{name_ext}")):
-                        count += 1
-                    new_filename = f"{name_base}_{count}{name_ext}"
-                    target_path = os.path.join(target_folder, new_filename)
-                # **********************************************
-                
-                os.makedirs(target_folder, exist_ok=True) 
-                
-                # ВЫПОЛНЕНИЕ ОПЕРАЦИИ
-                try:
-                    operation(source_path, target_path) 
-                    moved_count += 1
-                except FileNotFoundError:
-                    # Если файл не найден, но это фото друга, мы просто пропускаем. 
-                    if is_friend_photo:
-                         print(f"Предупреждение: Общий файл {filename} уже был обработан и отсутствует в источнике. Пропускаем.")
-                    else:
-                         # Если это уникальный файл (портрет, учитель) и его нет, это ошибка.
-                         raise # Перебрасываем ошибку FileNotFoundError
-                except Exception as e:
-                     raise # Перебрасываем любую другую ошибку
-                
-            self._update_status(f"УСПЕХ! Перемещено/Скопировано {moved_count} JPG-файлов.", is_error=False)
-            
-        except Exception as e:
-            self._update_status(f"Ошибка сортировки JPG: {e}", is_error=True)
-            
-        # ИЗМЕНЕНИЕ: Сбрасываем UI
-        self._reset_ui() 
-        self.save_config()
+        return target_folder, new_filename
 
 if __name__ == "__main__":
+    if not os.path.exists(resource_path("assets/logo.png")):
+        try:
+            from PIL import Image
+            dummy_img = Image.new('RGB', (100, 38), color = COLOR_ACCENT_PINK)
+        except ImportError:
+            pass
+
     root = tk.Tk()
     app = FolderGeneratorApp(root)
     root.mainloop()
