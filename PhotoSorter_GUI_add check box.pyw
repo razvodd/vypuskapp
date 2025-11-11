@@ -30,7 +30,7 @@ COLOR_BUTTON_DISABLED_LIGHT = '#EAEAEA'
 COLOR_BUTTON_TEXT_DISABLED = '#ccc'
 COLOR_CHECKBOX_BORDER = '#AEAEAE'
 COLOR_STATUS_ERROR = '#D32F2F' # Красный для ошибок
-COLOR_STATUS_NORMAL = '#2E7D32' # Зеленыный для успеха
+COLOR_STATUS_NORMAL = '#2E7D32' # Зеленый для успеха
 
 # Параметры UI
 BLOCK_PADY_VERTICAL = (20, 0)
@@ -152,6 +152,16 @@ class FloatingLabelEntry(tk.Frame):
             return
         self.animating = True
         self._animate_label(0, False)
+
+    # ИСПРАВЛЕНИЕ (ПРОБЛЕМА С "ДАТА"): Новая функция
+    def _force_float(self):
+        """Принудительно поднимает метку без анимации."""
+        RELX_OFFSET = -0.01
+        self.animating = False
+        self.is_floating = True
+        self.label.config(font=(self.font_family, 9), fg=COLOR_TEXT_LIGHT)
+        self.label.place(relx=RELX_OFFSET, rely=0.05, relwidth=1, anchor='nw')
+
 
     def _animate_label(self, step, float_up):
         RELX_OFFSET = -0.01
@@ -315,7 +325,7 @@ class PathFileSelector(FloatingLabelEntry):
 class FolderGeneratorApp:
     
     # ИЗМЕНЕНИЕ: НОВАЯ ФУНКЦИЯ ЦЕНТРИРОВАНИЯ
-    def _center_window(self, width=380, height=710): # Немного увеличена высота
+    def _center_window(self, width=380, height=680): # Уменьшена высота
         """Центрирует окно приложения на экране."""
         # Получаем размеры экрана
         screen_width = self.master.winfo_screenwidth()
@@ -367,6 +377,8 @@ class FolderGeneratorApp:
         
         # НОВОЕ: Общий флаг блокировки для ВСЕХ фоновых задач
         self.is_processing = False
+        # ИСПРАВЛЕНИЕ (ПРОБЛЕМА "ЗАВИСШИХ" КНОПОК):
+        self.current_task_canvas = None # Хранит canvas запущенной задачи
         
         # --- Загрузка и инициализация ---
         self.config_data = self._load_config()
@@ -376,7 +388,7 @@ class FolderGeneratorApp:
         self.set_default_path()
         
         # ИЗМЕНЕНИЕ: Центрируем окно ПОСЛЕ setup_ui
-        self._center_window(width=380, height=710)
+        self._center_window(width=380, height=680)
         
         master.protocol("WM_DELETE_WINDOW", self._on_closing)
         atexit.register(self.save_config)
@@ -432,8 +444,8 @@ class FolderGeneratorApp:
 
     def _update_status(self, message, is_error=False):
         """Обновляет метку статуса внизу."""
-        # ИЗМЕНЕНИЕ: Цвет статуса всегда серый
-        color = COLOR_TEXT_LIGHT # if is_error else COLOR_TEXT_LIGHT
+        # ИСПРАВЛЕНИЕ (ПРОБЛЕМА КРАСНЫХ ПОДСКАЗОК):
+        color = COLOR_TEXT_LIGHT # По умолчанию серый
         if is_error:
              color = COLOR_STATUS_ERROR # Если ошибка, используем красный
             
@@ -482,11 +494,14 @@ class FolderGeneratorApp:
             cursor = "hand2"
         
         else: # state == tk.DISABLED
-            if self.is_processing and is_action_button:
+            # ИСПРАВЛЕНИЕ (ПРОБЛЕМА "ЗАВИСШИХ" КНОПОК):
+            # Показываем "Выполнение..." ТОЛЬКО на той кнопке, которая была нажата
+            if self.is_processing and canvas == self.current_task_canvas:
                 fill_col = COLOR_BUTTON_DISABLED # Темно-серый
                 text_color = "white"
                 text = "Выполнение..."
             else:
+                # Все остальные случаи (просто неактивна, или занята другой задачей)
                 fill_col = COLOR_BUTTON_DISABLED_LIGHT # Светло-серый
                 text_color = COLOR_BUTTON_TEXT_DISABLED
             cursor = "arrow" 
@@ -585,7 +600,8 @@ class FolderGeneratorApp:
     # ====================================================================
     def setup_ui(self):
         main_frame = tk.Frame(self.master, bg=COLOR_BACKGROUND)
-        main_frame.pack(pady=20, padx=20, fill="both", expand=True)
+        main_frame.pack(pady=(20, 10), padx=20, fill="both", expand=True) # ИСПРАВЛЕНИЕ: Уменьшен нижний отступ
+            
         for i in range(4):
             main_frame.grid_columnconfigure(i, weight=1)
             
@@ -832,13 +848,6 @@ class FolderGeneratorApp:
             
         (frame, canvas, label) = cb_widgets
         
-        # Получаем лямбда-функцию для toggle_state (она хранится в canvas)
-        # Это хрупко, но необходимо, если мы хотим unbind/rebind
-        # ...
-        # ИЗМЕНЕНИЕ: Вместо bind/unbind, мы просто меняем курсор
-        # и полагаемся на проверку app_ref.is_processing в toggle_state.
-        # Но нам нужно перерисовать чекбокс, чтобы он стал серым.
-        
         # Просто перерисовываем, 'draw_indicator' сам проверит self.is_processing
         # Находим 'variable'
         if cb_widgets == self.cb_widgets_selected_raw:
@@ -863,9 +872,10 @@ class FolderGeneratorApp:
         # Блокируем, если идет процесс ИЛИ поля не заполнены
         new_state_gen = tk.DISABLED if self.is_processing else (tk.NORMAL if is_gen_complete else tk.DISABLED)
 
-        if self.generate_button.cget('state') != new_state_gen:
-            self.generate_button.config(state=new_state_gen)
-            self.master.after_idle(lambda: self.draw_button(self.canvas_gen , new_state_gen, "Сгенерировать структуру"))
+        # ИСПРАВЛЕНИЕ (КНОПКИ НЕ ВИДНЫ):
+        # Принудительно обновляем состояние И перерисовываем кнопку КАЖДЫЙ РАЗ.
+        self.generate_button.config(state=new_state_gen)
+        self.draw_button(self.canvas_gen , new_state_gen, "Сгенерировать структуру")
 
         # --- КНОПКА 2: Разложить JPG по папкам ---
         
@@ -875,20 +885,16 @@ class FolderGeneratorApp:
         # Блокируем, если идет процесс ИЛИ условия не выполнены
         new_state_sort = tk.DISABLED if self.is_processing else (tk.NORMAL if is_sort_complete else tk.DISABLED)
 
-        if self.sort_button.cget('state') != new_state_sort:
-            self.sort_button.config(state=new_state_sort)
-            self.master.after_idle(lambda: self.draw_button(self.canvas_sort, new_state_sort, "Разложить JPG по папкам"))
+        # ИСПРАВЛЕНИЕ (КНОПКИ НЕ ВИДНЫ):
+        # Принудительно обновляем состояние И перерисовываем кнопку КАЖДЫЙ РАЗ.
+        self.sort_button.config(state=new_state_sort)
+        self.draw_button(self.canvas_sort, new_state_sort, "Разложить JPG по папкам")
             
         # --- БЛОКИРОВКА ПОЛЕЙ И ЧЕКБОКСОВ ---
-        # Мы должны обновить состояние *всех* интерактивных элементов
-        
-        # 1. Поля ввода
         fields_state = tk.DISABLED if self.is_processing else tk.NORMAL
         for entry_widget in self.entries.values():
             entry_widget.set_state(fields_state)
             
-        # 2. Чекбоксы (перерисовываем их, чтобы они стали серыми)
-        # (Функция draw_indicator внутри них сама проверит self.is_processing)
         self._set_checkbox_state(self.cb_widgets_selected_raw, fields_state)
         self._set_checkbox_state(self.cb_widgets_all_raw_jpg, fields_state)
         self._set_checkbox_state(self.cb_widgets_jpg_exported, fields_state)
@@ -897,12 +903,15 @@ class FolderGeneratorApp:
         if self.is_processing:
             # Не меняем статус, если он уже показывает прогресс
             pass
+        # ИСПРАВЛЕНИЕ (УБРАТЬ ПОДСКАЗКУ НА СТАРТЕ):
+        elif not shooting_path_valid and not order_num and not class_name:
+             self._update_status("", is_error=False) # Ничего не выводим при чистом старте
         elif not shooting_path_valid:
-             self._update_status("Выберите Путь к съемке.", is_error=True)
+             self._update_status("Выберите Путь к съемке.", is_error=False) # Не ошибка
         elif not selection_file_exists:
-             self._update_status("Файл 'selected.txt' не найден (выберите Путь к съемке).", is_error=True)
+             self._update_status("Файл 'selected.txt' не найден (выберите Путь к съемке).", is_error=False) # Не ошибка
         elif not order_num or not class_name:
-             self._update_status("Введите Номер заказа и Класс.", is_error=True)
+             self._update_status("Введите Номер заказа и Класс.", is_error=False) # Не ошибка
         else:
             self._update_status("Готово к работе.", is_error=False)
 
@@ -995,14 +1004,11 @@ class FolderGeneratorApp:
                 except Exception as open_e:
                      print(f"Ошибка при попытке открыть файл: {open_e}")
                      self._update_status(f"Файл отбора найден, но не открыт: {os.path.basename(selection_path)}.", is_error=True) 
-            # ИЗМЕНЕНИЕ: Не меняем статус, если файл уже существует (т.к. его могли загрузить)
-            # else:
-            #    self._update_status(f"Файл отбора найден: {os.path.basename(selection_path)}.", is_error=False) 
             
         except Exception as e:
             self._update_status(f"Ошибка создания/обновления файла отбора: {e}", is_error=True)
             
-        self.check_input_fields()
+        # self.check_input_fields() # Убрано, т.к. вызовется в _update_paths...
 
     # ИЗМЕНЕНИЕ: Кастомный селектор для TXT-файлов
     def _select_txt_file(self, selector_widget):
@@ -1164,14 +1170,14 @@ class FolderGeneratorApp:
             f_order.entry.config(state='normal')
             f_order.entry.delete(0, tk.END)
             f_order.entry.insert(0, order)
-            f_order._float_label(initial_call=True)
+            f_order._force_float() # Используем _force_float
 
             # Дата
             f_date = self.entries["Дата"]
             f_date.entry.config(state='normal')
             f_date.entry.delete(0, tk.END)
             f_date.entry.insert(0, date)
-            f_date._float_label(initial_call=True)
+            f_date._force_float() # Используем _force_float
             f_date.entry.config(fg=COLOR_TEXT_NORMAL) # Важно для даты
 
             # Номер школы
@@ -1179,14 +1185,14 @@ class FolderGeneratorApp:
             f_school.entry.config(state='normal')
             f_school.entry.delete(0, tk.END)
             f_school.entry.insert(0, school)
-            f_school._float_label(initial_call=True)
+            f_school._force_float() # Используем _force_float
 
             # Класс
             f_class = self.entries["Класс"]
             f_class.entry.config(state='normal')
             f_class.entry.delete(0, tk.END)
             f_class.entry.insert(0, class_name)
-            f_class._float_label(initial_call=True)
+            f_class._force_float() # Используем _force_float
             
             self._update_status("Данные из существующей структуры загружены.", is_error=False)
             self.check_input_fields()
@@ -1270,7 +1276,9 @@ class FolderGeneratorApp:
     
         # 2. Блокировка UI
         self.is_processing = True # Установка флага
+        self.current_task_canvas = self.canvas_gen # <--- ИСПРАВЛЕНИЕ (ЗАВИСШИЕ КНОПКИ)
         self.check_input_fields() # Обновление состояния кнопок
+        
         self.master.after(0, self._update_status, "Начало...", False)
 
         # 3. Запуск задачи в отдельном потоке
@@ -1339,6 +1347,10 @@ class FolderGeneratorApp:
                         raise Exception(message)
                     if not_found_files:
                          self.master.after(0, messagebox.showwarning, "Внимание", f"Не удалось найти следующие номера файлов (RAW): {', '.join(not_found_files)}")
+                    
+                    # ИСПРАВЛЕНИЕ (ОТКРЫТИЕ ПАПКИ): Открываем папку, куда были скопированы файлы
+                    self.master.after(0, self._open_target_folder_after_copy, target_raw_dir)
+
 
             # --- ЧАСТЬ 3: Копирование ВСЕХ RAW и JPG (Если отмечено) ---
             if run_copy_all:
@@ -1386,37 +1398,35 @@ class FolderGeneratorApp:
             # Обработка любой ошибки из try
             self.master.after(0, self._on_generation_complete, f"ОШИБКА: {e}", True, order_num)
 
+    # ИСПРАВЛЕНИЕ (ОТКРЫТИЕ ПАПКИ): Новая/измененная функция
+    def _open_target_folder_after_copy(self, folder_path):
+        """Открывает папку 'отобранный материал' (вызывается в главном потоке)"""
+        self._update_status(f"Открытие папки 'отобранный материал'...", is_error=False) 
+        try:
+            if sys.platform == "win32":
+                os.startfile(folder_path)
+            elif sys.platform == "darwin": # macOS
+                subprocess.Popen(["open", folder_path])
+            else: # Linux/UNIX
+                subprocess.Popen(["xdg-open", folder_path])
+        except Exception as e:
+            print(f"Ошибка при попытке открыть папку: {e}")
+            self._update_status("Папка 'отобранный материал' скопирована, но не открыта.", is_error=True)
+
+
     def _on_generation_complete(self, message, is_error, order_num):
         """
-        Восстанавливает UI после завершения ГЕНЕРАЦИИ, показывает статус и открывает папку.
+        Восстанавливает UI после завершения ГЕНЕРАЦИИ, показывает статус.
         """
         # 1. Восстановление кнопок
         self.is_processing = False # Снятие флага
+        self.current_task_canvas = None # <--- ИСПРАВЛЕНИЕ (ЗАВИСШИЕ КНОПКИ)
         self.check_input_fields() # Восстановление состояния кнопок
         self._update_status(message, is_error=is_error)
         self.save_config() # Сохраняем конфиг
-
-        # 2. Открытие папки (только при успехе)
-        if not is_error:
-            # Открываем ГЛАВНУЮ папку заказа
-            target_dir = os.path.join(self.output_path, order_num)
-            
-            if not os.path.isdir(target_dir):
-                 self.master.after(0, self._update_status, f"Ошибка: Целевая папка '{target_dir}' не найдена.", True)
-                 return
-                 
-            self._update_status(f"Открытие папки '{order_num}'...", is_error=False) 
-            try:
-                if sys.platform == "win32":
-                    os.startfile(target_dir)
-                elif sys.platform == "darwin": # macOS
-                    subprocess.Popen(["open", target_dir])
-                else: # Linux/UNIX
-                    subprocess.Popen(["xdg-open", target_dir])
-            except Exception as e:
-                print(f"Ошибка при попытке открыть папку: {e}")
-                self.master.after(0, self._update_status, "Папка создана, но не открыта.", True)
-
+        
+        # ИСПРАВЛЕНИЕ (ОТКРЫТИЕ ПАПКИ): Убрано открытие папки отсюда
+        
     # --- Логика для ЭТАПА 1 (Генерация) ---
 
     def _perform_selected_raw_copy_logic(self, target_raw_dir, on_progress):
@@ -1563,7 +1573,7 @@ class FolderGeneratorApp:
                  
             # 2. Проверяем совпадение номера (более надежная логика для ANT00102)
             
-            # Поиск в конце имени файла: ищем номер (до 5 цифр)
+            # Поиск в конце имени имени файла: ищем номер (до 5 цифр)
             match = re.search(r'(\d{1,5})$', name_without_ext)
             
             if match:
@@ -1661,8 +1671,12 @@ class FolderGeneratorApp:
         # 2. Восстанавливаем текущую дату
         f_date = self.entries["Дата"]
         today_str = datetime.datetime.now().strftime("%d.%m.%Y")
+        
+        # ИСПРАВЛЕНИЕ (ПРОБЛЕМА С "ДАТА"):
+        # Сначала вставляем, потом принудительно поднимаем метку
         f_date.entry.insert(0, today_str)
-        f_date._float_label(initial_call=True)
+        f_date._force_float()
+        f_date.entry.config(fg=COLOR_TEXT_NORMAL) # Убеждаемся, что текст видимый
 
         # 3. Сбрасываем переменные состояния
         self.shooting_path = ""
@@ -1735,8 +1749,13 @@ class FolderGeneratorApp:
         
         # Если номер не найден, мы не можем сортировать по данным из TXT
         if not file_number:
-            # Fallback для JPG без номеров в имени (редкий случай)
-            return os.path.join(base_dir, "общая"), filename, False
+            # Fallback для JPG без номеров в имени (редкий случай, н-р "здание.jpg")
+            # ИСПРАВЛЕНИЕ: Проверяем по имени файла (для "зд_")
+            if filename.lower().startswith('зд_'):
+                return os.path.join(base_dir, 'здание'), filename, False
+            
+            # Иначе не перемещаем
+            return None, None, False
 
         # --- 1.1. Поиск по УЧЕНИКАМ (используя карту позиций) ---
         for student_name, position_map in students_map.items():
@@ -1771,14 +1790,19 @@ class FolderGeneratorApp:
                     new_filename = f"{description}_{filename}" # Используем описание из TXT в качестве префикса
                     return os.path.join(base_dir, category_name), new_filename, False
         
-        # --- 2. Fallback для файлов без номеров или без совпадений ---
-
-        # Имитируем префиксы для (Здание)
+        # --- 2. Fallback для файлов (н-р 'зд_') ---
         if filename.lower().startswith('зд_'):
             return os.path.join(base_dir, 'здание'), filename, False
 
         # --- 3. По умолчанию (если не найдено) ---
-        return os.path.join(base_dir, "общая"), filename, False
+        # ИСПРАВЛЕНИЕ (ПРОБЛЕМА С "ОБЩАЯ"): Если файл имеет номер, но не найден в TXT,
+        # мы его НЕ перемещаем (возвращаем None).
+        if file_number:
+            return None, None, False
+            
+        # (Остаются только файлы без номеров, которые не 'зд_')
+        # (Например 'logo.jpg' - такие файлы мы тоже не трогаем)
+        return None, None, False
 
 
     def start_sort_jpgs(self):
@@ -1803,7 +1827,9 @@ class FolderGeneratorApp:
         
         # 2. Блокировка UI
         self.is_processing = True
+        self.current_task_canvas = self.canvas_sort # <--- ИСПРАВЛЕНИЕ (ЗАВИСШИЕ КНОПКИ)
         self.check_input_fields()
+        
         self.master.after(0, self._update_status, "Начало сортировки JPG...", False)
         
         # 3. Запуск задачи в отдельном потоке
@@ -1853,16 +1879,12 @@ class FolderGeneratorApp:
             if not os.path.isdir(base_target_dir):
                 raise Exception(f"Папка структуры не найдена. (Выполните 'Сгенерировать')")
                 
-            # Откуда (из 'отобранный материал')
-            # ИЗМЕНЕНИЕ: Теперь мы берем JPG из папки 'дубли' (куда скопировали ВСЕ JPG)
-            # source_material_dir = os.path.join(self.output_path, order_num, f"{order_num} дубли равы", "отобранный материал")
-            
-            # ИСПРАВЛЕНИЕ: Мы берем JPG из папки "1111 дубли"
-            source_material_dir = os.path.join(self.output_path, order_num, f"{order_num} дубли")
-
+            # ИСПРАВЛЕНИЕ (ПРОБЛЕМА С "ВЫРЕЗАНИЕМ" - ПУТЬ):
+            # Мы берем JPG из папки "отобранный материал".
+            source_material_dir = os.path.join(self.output_path, order_num, f"{order_num} дубли равы", "отобранный материал")
 
             if not os.path.isdir(source_material_dir):
-                raise Exception(f"Папка '{order_num} дубли' не найдена.")
+                raise Exception(f"Папка 'отобранный материал' не найдена.")
                 
             # 3. Сканирование и перемещение
             moved_count = 0
@@ -1871,7 +1893,7 @@ class FolderGeneratorApp:
             total_files = len(jpg_files_to_move)
             
             if total_files == 0:
-                raise Exception(f"В папке '{order_num} дубли' не найдено JPG-файлов.")
+                raise Exception(f"В папке 'отобранный материал' не найдено JPG-файлов.")
 
             on_progress(f"Сортировка 0/{total_files} JPG...", 0)
 
@@ -1889,11 +1911,18 @@ class FolderGeneratorApp:
                     font_map
                 )
                 
+                # ИСПРАВЛЕНИЕ (ПРОБЛЕМА С "ОБЩАЯ"):
+                # Если папка None, значит файл не нужно перемещать (он не в selected.txt)
+                if target_folder is None:
+                    continue
+                
                 # Конечный путь для перемещения/копирования
                 target_path = os.path.join(target_folder, new_filename)
                 
-                # Определяем операцию: копирование для общих файлов (друзей) или перемещение для уникальных
-                operation = shutil.copy2 if is_friend_photo else shutil.move # NEW LINE
+                # ИСПРАВЛЕНИЕ (ПРОБЛЕМА С "ВЫРЕЗАНИЕМ"):
+                # Всегда используем ВЫРЕЗАТЬ (shutil.move).
+                # Логика "копирования" фото друзей была неверной для этого этапа.
+                operation = shutil.move
                 
                 # *** КРИТИЧНОЕ ИСПРАВЛЕНИЕ ДЛЯ ПЕРЕЗАПИСИ ***
                 if os.path.exists(target_path):
@@ -1912,12 +1941,8 @@ class FolderGeneratorApp:
                     operation(source_path, target_path) 
                     moved_count += 1
                 except FileNotFoundError:
-                    # Если файл не найден, но это фото друга, мы просто пропускаем. 
-                    if is_friend_photo:
-                        print(f"Предупреждение: Общий файл {filename} уже был обработан и отсутствует в источнике. Пропускаем.")
-                    else:
-                        # Если это уникальный файл (портрет, учитель) и его нет, это ошибка.
-                        raise # Перебрасываем ошибку FileNotFoundError
+                    # Эта ошибка теперь не должна возникать, но оставим защиту
+                    print(f"Предупреждение: Файл {filename} не найден в источнике. Пропускаем.")
                 except Exception as e:
                     raise # Перебрасываем любую другую ошибку
                 
@@ -1932,6 +1957,7 @@ class FolderGeneratorApp:
         
         # 1. Восстановление
         self.is_processing = False
+        self.current_task_canvas = None # <--- ИСПРАВЛЕНИЕ (ЗАВИСШИЕ КНОПКИ)
         
         # 2. Сбрасываем UI (по старому ТЗ)
         if not is_error:
@@ -1949,4 +1975,11 @@ class FolderGeneratorApp:
 if __name__ == "__main__":
     root = tk.Tk()
     app = FolderGeneratorApp(root)
+    
+    # КРИТИЧНОЕ ИСПРАВЛЕНИЕ (КНОПКИ НЕ ВИДНЫ):
+    # Мы ждем, пока Tkinter будет готов, и вручную
+    # генерируем событие Configure, чтобы кнопки прорисовались.
+    root.after(100, lambda: app.canvas_gen.event_generate('<Configure>'))
+    root.after(100, lambda: app.canvas_sort.event_generate('<Configure>'))
+    
     root.mainloop()
