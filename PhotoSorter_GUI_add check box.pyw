@@ -49,8 +49,8 @@ STUDENT_POSITIONS = {
     0: "Виньетка", # Будет переименовано в ФИО.JPG
     1: "ЛР_Портрет1", # Будет переименовано в ЛР_ФИО.JPG
     2: "ЛС_Портрет2", # Будет переименовано в ЛС_ФИО.JPG
-    3: "Друг1",      # Сохраняет номер
-    4: "Друг2"       # Сохраняет номер
+    3: "Друг1",       # Сохраняет номер
+    4: "Друг2"        # Сохраняет номер
 }
 
 # ====================================================================
@@ -84,17 +84,17 @@ class FloatingLabelEntry(tk.Frame):
 
         # ИЗМЕНЕНИЕ: Убран bd и relief, добавлен highlightthickness=0
         self.entry = tk.Entry(self.entry_container, bd=0, relief=tk.FLAT,
-                                  highlightthickness=0, # Убраны серые рамки
-                                  font=(font_family, 12), bg=COLOR_BACKGROUND,
-                                  fg=COLOR_TEXT_NORMAL, insertbackground=COLOR_ACCENT_PINK,
-                                  insertwidth=1, # Уменьшен курсор
-                                  readonlybackground=COLOR_BACKGROUND, # КРИТИЧНОЕ ИСПРАВЛЕНИЕ
-                                  **kwargs)
+                                     highlightthickness=0, # Убраны серые рамки
+                                     font=(font_family, 12), bg=COLOR_BACKGROUND,
+                                     fg=COLOR_TEXT_NORMAL, insertbackground=COLOR_ACCENT_PINK,
+                                     insertwidth=1, # Уменьшен курсор
+                                     readonlybackground=COLOR_BACKGROUND, # КРИТИЧНОЕ ИСПРАВЛЕНИЕ
+                                     **kwargs)
         self.entry.place(relx=0, rely=0.7, relwidth=1, anchor='w')
 
         self.label = tk.Label(self.entry_container, text=label_text,
-                                  bg=COLOR_BACKGROUND, fg=COLOR_TEXT_LIGHT,
-                                  font=(font_family, 12), anchor='w')
+                                     bg=COLOR_BACKGROUND, fg=COLOR_TEXT_LIGHT,
+                                     font=(font_family, 12), anchor='w')
         self.label.place(relx=-0.01, rely=0.5, relwidth=1, height=20, anchor='w')
 
         self.line = tk.Frame(self, height=1, bg=COLOR_LINE_INACTIVE)
@@ -194,7 +194,7 @@ class FloatingLabelEntry(tk.Frame):
             self.label.place(relx=RELX_OFFSET, rely=y, relwidth=1, height=size+7, anchor='nw')
         else:
             self.label.place(relx=RELX_OFFSET, rely=y, relwidth=1, height=size+7, anchor='w')
-        
+            
         fg_color = COLOR_TEXT_LIGHT
             
         self.label.config(font=(self.font_family, size), fg=fg_color)
@@ -214,11 +214,11 @@ class FloatingLabelEntry(tk.Frame):
         else:
             self.entry.config(state=new_state)
             self.entry.config(fg=COLOR_TEXT_NORMAL)
-        
+            
         # Для PathFileSelector, который 'readonly' по умолчанию
         if isinstance(self, PathFileSelector) and new_state == tk.NORMAL:
-             self.entry.config(state='readonly')
-             self.entry.config(fg=COLOR_TEXT_NORMAL)
+              self.entry.config(state='readonly')
+              self.entry.config(fg=COLOR_TEXT_NORMAL)
 
 # ====================================================================
 # КЛАСС PathFileSelector
@@ -243,8 +243,8 @@ class PathFileSelector(FloatingLabelEntry):
         
         self.entry.config(state='normal')
         if initial_value:
-             self.entry.insert(0, initial_value)
-             self._float_label(initial_call=True)
+              self.entry.insert(0, initial_value)
+              self._float_label(initial_call=True)
         self.entry.config(state='readonly')
 
     def select_path_or_file(self, event=None):
@@ -377,6 +377,9 @@ class FolderGeneratorApp:
         
         # НОВОЕ: Общий флаг блокировки для ВСЕХ фоновых задач
         self.is_processing = False
+        # НОВОЕ: Флаг для блокировки кнопки "Сгенерировать структуру" после первого успеха
+        self.is_structure_generated = False 
+        
         # ИСПРАВЛЕНИЕ (ПРОБЛЕМА "ЗАВИСШИХ" КНОПОК):
         self.current_task_canvas = None # Хранит canvas запущенной задачи
         
@@ -485,7 +488,7 @@ class FolderGeneratorApp:
 
         if state == tk.NORMAL:
             if is_action_button:
-                fill_col = COLOR_BUTTON_DISABLED # Темно-серый
+                fill_col = COLOR_ACCENT_PINK # Темно-серый
                 text_color = "white"
                 outline_col = ""
             else: # Fallback для других (если появятся)
@@ -509,7 +512,7 @@ class FolderGeneratorApp:
         self.create_rounded_rectangle(canvas, 1, 1, width-1, height-1, radius, fill_color=fill_col, outline_color=outline_col, tags="button_bg") 
         
         canvas.create_text(width/2, height/2, text=text, 
-                             font=(FONT_FAMILY, 14, 'bold'), fill=text_color, tags="button_text")
+                              font=(FONT_FAMILY, 14, 'bold'), fill=text_color, tags="button_text")
         
         canvas.config(cursor=cursor)
 
@@ -526,7 +529,7 @@ class FolderGeneratorApp:
         indicator_size = 20
         
         canvas = tk.Canvas(internal_frame, width=indicator_size, height=indicator_size, 
-                             bg=COLOR_BACKGROUND, highlightthickness=0, bd=0)
+                              bg=COLOR_BACKGROUND, highlightthickness=0, bd=0)
         canvas.pack(side=tk.LEFT, padx=(0, 4))
         
         def draw_indicator():
@@ -549,24 +552,24 @@ class FolderGeneratorApp:
                     fill_color = COLOR_BUTTON_TEXT_DISABLED # Серый, если занято
 
                 self.create_rounded_rectangle(canvas, x1, y1, x2, y2, checkbox_radius, 
-                                                fill_color=fill_color, tags="checkbox_outer_border")
+                                                 fill_color=fill_color, tags="checkbox_outer_border")
                 offset_white = 2
                 w_x1, w_y1 = x1 + offset_white, y1 + offset_white
                 w_x2, w_y2 = x2 - offset_white, y2 - offset_white
                 self.create_rounded_rectangle(canvas, w_x1, w_y1, w_x2, w_y2, 
-                                                checkbox_radius, fill_color=COLOR_BACKGROUND, tags="checkbox_white_fill")
+                                                 checkbox_radius, fill_color=COLOR_BACKGROUND, tags="checkbox_white_fill")
                 offset_pink = 4
                 p_x1, p_y1 = x1 + offset_pink, y1 + offset_pink
                 p_x2, p_y2 = x2 - offset_pink, y2 - offset_pink
                 self.create_rounded_rectangle(canvas, p_x1, p_y1, p_x2, p_y2, 
-                                                checkbox_radius, fill_color=fill_color, tags="checkbox_inner_fill")
+                                                 checkbox_radius, fill_color=fill_color, tags="checkbox_inner_fill")
             else:
                 # Неактивное состояние (выкл)
                 self.create_rounded_rectangle(canvas, x1, y1, x2, y2, checkbox_radius, 
-                                                fill_color=COLOR_BACKGROUND, outline_color=border_color, width=1, tags="checkbox_border")
+                                                 fill_color=COLOR_BACKGROUND, outline_color=border_color, width=1, tags="checkbox_border")
             
         label = tk.Label(internal_frame, text=text, bg=COLOR_BACKGROUND, fg=COLOR_TEXT_NORMAL,
-                           font=(FONT_FAMILY, 12), cursor="hand2")
+                              font=(FONT_FAMILY, 12), cursor="hand2")
         label.pack(side=tk.LEFT, anchor='w', padx=(0, label_right_pad))
         
         # НОВОЕ: Обновляем цвет текста, если занято
@@ -601,7 +604,7 @@ class FolderGeneratorApp:
     def setup_ui(self):
         main_frame = tk.Frame(self.master, bg=COLOR_BACKGROUND)
         main_frame.pack(pady=(20, 10), padx=20, fill="both", expand=True) # ИСПРАВЛЕНИЕ: Уменьшен нижний отступ
-            
+        
         for i in range(4):
             main_frame.grid_columnconfigure(i, weight=1)
             
@@ -620,8 +623,8 @@ class FolderGeneratorApp:
             logo_label.pack(side=tk.LEFT, padx=(0, 0))
         except:
             tk.Label(header_frame, text="ВЫПУСК.РУ",
-                         font=(FONT_FAMILY, 24, 'bold'),
-                         fg=COLOR_ACCENT_PINK, bg=COLOR_BACKGROUND).pack(side=tk.LEFT)
+                          font=(FONT_FAMILY, 24, 'bold'),
+                          fg=COLOR_ACCENT_PINK, bg=COLOR_BACKGROUND).pack(side=tk.LEFT)
             
         row = 2
         
@@ -635,8 +638,8 @@ class FolderGeneratorApp:
         dual_field_container_1.grid_columnconfigure(2, weight=1)
 
         f_order = FloatingLabelEntry(dual_field_container_1, "Номер заказа", FONT_FAMILY, 
-                                         initial_value=self.config_data.get('order_number', ''), 
-                                         on_change_callback=self.check_input_fields)
+                                             initial_value=self.config_data.get('order_number', ''), 
+                                             on_change_callback=self.check_input_fields)
         f_order.grid(row=0, column=0, sticky='ew')
         self.entries["Номер заказа"] = f_order
 
@@ -665,16 +668,16 @@ class FolderGeneratorApp:
         dual_field_container_2.grid_columnconfigure(2, weight=1)
 
         f_school = FloatingLabelEntry(dual_field_container_2, "Номер школы", FONT_FAMILY, 
-                                          initial_value=self.config_data.get('school_number', ''), 
-                                          on_change_callback=self.check_input_fields)
+                                             initial_value=self.config_data.get('school_number', ''), 
+                                             on_change_callback=self.check_input_fields)
         f_school.grid(row=0, column=0, sticky='ew')
         self.entries["Номер школы"] = f_school
 
         tk.Frame(dual_field_container_2, width=20, bg=COLOR_BACKGROUND).grid(row=0, column=1, sticky='ns')
 
         f_class = FloatingLabelEntry(dual_field_container_2, "Класс", FONT_FAMILY, 
-                                         initial_value=self.config_data.get('class_name', ''), 
-                                         on_change_callback=self.check_input_fields)
+                                             initial_value=self.config_data.get('class_name', ''), 
+                                             on_change_callback=self.check_input_fields)
         f_class.grid(row=0, column=2, sticky='ew')
         self.entries["Класс"] = f_class
         row += 1
@@ -683,9 +686,9 @@ class FolderGeneratorApp:
         # 5. Путь к съемке (PathSelector) - ТЕПЕРЬ НИЖЕ
         # --------------------------------------------------------------------------
         self.path_shooting_sel = PathFileSelector(main_frame, "Выберите путь к съемке", FONT_FAMILY, 
-                                                    select_dir=True, 
-                                                    initial_value=self.shooting_path,
-                                                    on_select_callback=lambda path: self._update_paths_and_check_fields(path, 'shooting_path'))
+                                                             select_dir=True, 
+                                                             initial_value=self.shooting_path,
+                                                             on_select_callback=lambda path: self._update_paths_and_check_fields(path, 'shooting_path'))
         self.path_shooting_sel.grid(row=row, column=0, columnspan=4, padx=10, pady=BLOCK_PADY_VERTICAL, sticky='ew')
         self.entries["Путь к съемке"] = self.path_shooting_sel # Для блокировки
         row += 1
@@ -694,10 +697,10 @@ class FolderGeneratorApp:
         # 6. Файл отбора (ОТОБРАЖЕНИЕ) - ТЕПЕРЬ НИЖЕ
         # --------------------------------------------------------------------------
         self.path_selection_file = PathFileSelector(main_frame, "Файл отбора", FONT_FAMILY, 
-                                                  select_dir=False, 
-                                                  allow_multiple=False, # Только один файл
-                                                  initial_value="", # Всегда пусто при старте
-                                                  on_select_callback=lambda path: self._update_paths_and_check_fields(path, 'selection_file'))
+                                                             select_dir=False, 
+                                                             allow_multiple=False, # Только один файл
+                                                             initial_value="", # Всегда пусто при старте
+                                                             on_select_callback=lambda path: self._update_paths_and_check_fields(path, 'selection_file'))
         
         # ИЗМЕНЕНИЕ: Меняем тип файла для диалога
         self.path_selection_file.select_path_or_file = lambda event=None: self._select_txt_file(self.path_selection_file)
@@ -784,8 +787,8 @@ class FolderGeneratorApp:
         # 11. Метка статуса (Внизу)
         # --------------------------------------------------------------------------
         self.status_label = tk.Label(main_frame, text="", anchor="w",
-                                      fg=COLOR_STATUS_NORMAL, bg=COLOR_BACKGROUND,
-                                      font=(FONT_FAMILY, 10))
+                                             fg=COLOR_STATUS_NORMAL, bg=COLOR_BACKGROUND,
+                                             font=(FONT_FAMILY, 10))
         self.status_label.grid(row=row, column=0, columnspan=4, sticky='ew', padx=10, pady=(10,0))
         row += 1
 
@@ -869,8 +872,9 @@ class FolderGeneratorApp:
         # --- КНОПКА 1: Сгенерировать структуру ---
         is_gen_complete = all([order_num, class_name]) and shooting_path_valid
         
-        # Блокируем, если идет процесс ИЛИ поля не заполнены
-        new_state_gen = tk.DISABLED if self.is_processing else (tk.NORMAL if is_gen_complete else tk.DISABLED)
+        # НОВОЕ УСЛОВИЕ: Добавляем проверку is_structure_generated
+        should_be_disabled = self.is_processing or (not is_gen_complete) or self.is_structure_generated
+        new_state_gen = tk.DISABLED if should_be_disabled else tk.NORMAL
 
         # ИСПРАВЛЕНИЕ (КНОПКИ НЕ ВИДНЫ):
         # Принудительно обновляем состояние И перерисовываем кнопку КАЖДЫЙ РАЗ.
@@ -879,7 +883,7 @@ class FolderGeneratorApp:
 
         # --- КНОПКА 2: Разложить JPG по папкам ---
         
-        # Условия: путь, файл отбора, И нажат чекбокс "Я вывел"
+        # Условия: путь, файл отбора, И нажат чекбокс "Я вывел jpg"
         is_sort_complete = all([shooting_path_valid, selection_file_exists, self.var_jpg_exported.get()])
         
         # Блокируем, если идет процесс ИЛИ условия не выполнены
@@ -906,6 +910,8 @@ class FolderGeneratorApp:
         # ИСПРАВЛЕНИЕ (УБРАТЬ ПОДСКАЗКУ НА СТАРТЕ):
         elif not shooting_path_valid and not order_num and not class_name:
              self._update_status("", is_error=False) # Ничего не выводим при чистом старте
+        elif self.is_structure_generated and is_sort_complete:
+             self._update_status("Готово к сортировке JPG.", is_error=False)
         elif not shooting_path_valid:
              self._update_status("Выберите Путь к съемке.", is_error=False) # Не ошибка
         elif not selection_file_exists:
@@ -1236,6 +1242,8 @@ class FolderGeneratorApp:
                 # Если мы дошли сюда, мы нашли полную структуру!
                 # Вызываем автозаполнение в основном потоке
                 self.master.after(0, self._autofill_fields, order_num, date, school_num, class_name)
+                # НОВОЕ: Если структура найдена, сразу считаем, что она "сгенерирована"
+                self.is_structure_generated = True 
                 return True # Останавливаем поиск
                 
         except Exception as e:
@@ -1421,6 +1429,11 @@ class FolderGeneratorApp:
         # 1. Восстановление кнопок
         self.is_processing = False # Снятие флага
         self.current_task_canvas = None # <--- ИСПРАВЛЕНИЕ (ЗАВИСШИЕ КНОПКИ)
+        
+        # НОВОЕ: Устанавливаем флаг успешной генерации
+        if not is_error:
+             self.is_structure_generated = True 
+             
         self.check_input_fields() # Восстановление состояния кнопок
         self._update_status(message, is_error=is_error)
         self.save_config() # Сохраняем конфиг
@@ -1570,7 +1583,7 @@ class FolderGeneratorApp:
             # 1. Проверяем, является ли файл RAW
             if ext_lower not in RAW_EXTENSIONS:
                  continue
-                 
+                
             # 2. Проверяем совпадение номера (более надежная логика для ANT00102)
             
             # Поиск в конце имени имени файла: ищем номер (до 5 цифр)
@@ -1682,6 +1695,7 @@ class FolderGeneratorApp:
         self.shooting_path = ""
         self.selection_file_path = None
         self.selection_data = {}
+        self.is_structure_generated = False # <--- Сброс нового флага
         
         # 4. Сбрасываем Чекбоксы
         self.var_copy_selected_raw.set(True)
@@ -1738,47 +1752,48 @@ class FolderGeneratorApp:
         """
         Определяет целевую папку и новое имя для файла.
         Возвращает (target_folder, new_filename, is_friend_photo: bool).
+        
+        ВНИМАНИЕ: Эта функция используется для определения, является ли файл уникальным или другом, 
+        а также для определения целевого пути уникальных файлов.
         """
         
         original_filename_no_ext = os.path.splitext(filename)[0]
         
         # 1. Извлекаем номер из имени JPG-файла
-        # Используем более точное извлечение номера (последняя последовательность цифр)
         match_num = re.search(r'(\d+)(?!.*\d)', original_filename_no_ext)
         file_number = int(match_num.group(1)) if match_num else None
         
-        # Если номер не найден, мы не можем сортировать по данным из TXT
         if not file_number:
-            # Fallback для JPG без номеров в имени (редкий случай, н-р "здание.jpg")
-            # ИСПРАВЛЕНИЕ: Проверяем по имени файла (для "зд_")
             if filename.lower().startswith('зд_'):
                 return os.path.join(base_dir, 'здание'), filename, False
-            
-            # Иначе не перемещаем
             return None, None, False
 
-        # --- 1.1. Поиск по УЧЕНИКАМ (используя карту позиций) ---
+        # --- 1.1. Поиск по УЧЕНИКАМ ---
+        # Если это фото ученика, оно уникально (0, 1, 2) или является другом (3, 4)
         for student_name, position_map in students_map.items():
             if file_number in position_map:
-                target_folder, new_filename = self._get_renamed_path_and_folder(base_dir, filename, student_name, file_number, position_map)
-                
                 position_index = position_map.get(file_number)
-                is_friend = position_index in [3, 4] # Positions 3 and 4 are Friends
+                
+                if position_index in [3, 4]:
+                    # Это фото друга, нужно КОПИРОВАТЬ
+                    return None, None, True 
+                
+                # Это портрет/виньетка, уникальный файл (позиции 0, 1, 2)
+                target_folder, new_filename = self._get_renamed_path_and_folder(base_dir, filename, student_name, file_number, position_map)
+                return target_folder, new_filename, False # False: Не фото друга
 
-                return target_folder, new_filename, is_friend
-
-
-        # --- 1.2. Поиск по УЧИТЕЛЯМ ---
+        # --- 1.2. Поиск по УЧИТЕЛЯМ/ОБЩАЯ/РЕПОРТАЖ/ФОН ---
+        # Эти файлы всегда уникальны (не являются общими друзьями в контексте кода)
+        
+        # Поиск по УЧИТЕЛЯМ
         for teacher_key, numbers in teachers_map.items():
             if file_number in numbers:
-                # Извлекаем ФИО учитель Предмет
                 teacher_description = self._sanitize_folder_name(teacher_key)
                 original_ext = os.path.splitext(filename)[1]
-                new_filename = f"{teacher_description}{original_ext}" # Новое имя: ФИО учитель Предмет.JPG
+                new_filename = f"{teacher_description}{original_ext}" 
                 return os.path.join(base_dir, 'учителя'), new_filename, False
 
-        # --- 1.3. Поиск по ОБЩАЯ/РЕПОРТАЖ/ФОН ---
-        # Здесь оставляем оригинальное имя файла (filename), но добавляем префикс для сортировки
+        # Поиск по ОБЩАЯ/РЕПОРТАЖ/ФОН
         for category_name, category_map in {
             "общая": general_map, 
             "репортаж": group_map, 
@@ -1786,8 +1801,7 @@ class FolderGeneratorApp:
         }.items():
             for description, numbers in category_map.items():
                 if file_number in numbers:
-                    # Для этих файлов имя = Префикс_ОригинальноеИмя
-                    new_filename = f"{description}_{filename}" # Используем описание из TXT в качестве префикса
+                    new_filename = f"{description}_{filename}" 
                     return os.path.join(base_dir, category_name), new_filename, False
         
         # --- 2. Fallback для файлов (н-р 'зд_') ---
@@ -1795,13 +1809,6 @@ class FolderGeneratorApp:
             return os.path.join(base_dir, 'здание'), filename, False
 
         # --- 3. По умолчанию (если не найдено) ---
-        # ИСПРАВЛЕНИЕ (ПРОБЛЕМА С "ОБЩАЯ"): Если файл имеет номер, но не найден в TXT,
-        # мы его НЕ перемещаем (возвращаем None).
-        if file_number:
-            return None, None, False
-            
-        # (Остаются только файлы без номеров, которые не 'зд_')
-        # (Например 'logo.jpg' - такие файлы мы тоже не трогаем)
         return None, None, False
 
 
@@ -1843,6 +1850,7 @@ class FolderGeneratorApp:
     def _sort_jpgs_task(self, order_num):
         """
         Фоновая ЛОГИКА: Сортирует JPG-файлы.
+        КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Гарантирует КОПИРОВАНИЕ фото друзей всем участникам.
         """
         
         # --- ОБЩИЙ КОЛБЭК ДЛЯ СТАТУСА ---
@@ -1879,15 +1887,13 @@ class FolderGeneratorApp:
             if not os.path.isdir(base_target_dir):
                 raise Exception(f"Папка структуры не найдена. (Выполните 'Сгенерировать')")
                 
-            # ИСПРАВЛЕНИЕ (ПРОБЛЕМА С "ВЫРЕЗАНИЕМ" - ПУТЬ):
-            # Мы берем JPG из папки "отобранный материал".
+            # Папка, откуда берем JPG
             source_material_dir = os.path.join(self.output_path, order_num, f"{order_num} дубли равы", "отобранный материал")
 
             if not os.path.isdir(source_material_dir):
                 raise Exception(f"Папка 'отобранный материал' не найдена.")
                 
-            # 3. Сканирование и перемещение
-            moved_count = 0
+            # 3. Сканирование и подготовка
             
             jpg_files_to_move = [f for f in os.listdir(source_material_dir) if f.lower().endswith(('.jpg', '.jpeg'))]
             total_files = len(jpg_files_to_move)
@@ -1895,57 +1901,144 @@ class FolderGeneratorApp:
             if total_files == 0:
                 raise Exception(f"В папке 'отобранный материал' не найдено JPG-файлов.")
 
-            on_progress(f"Сортировка 0/{total_files} JPG...", 0)
-
+            on_progress(f"Подготовка 0/{total_files} JPG...", 0)
+            
+            # --- НОВОЕ: АГРЕГАЦИЯ ДАННЫХ ---
+            
+            # Словарь для агрегации: {file_number: {source: str, targets: [ (target_folder, new_filename) ]}}
+            friend_photo_targets = {}
+            # Список для перемещения (только уникальные фото)
+            unique_photo_moves = []
+            
+            # Проход 1: Сбор всех целевых путей (включая все копии для друзей)
             for i, filename in enumerate(jpg_files_to_move):
                 source_path = os.path.join(source_material_dir, filename)
                 
+                # Извлекаем номер из имени JPG-файла
+                match_num = re.search(r'(\d+)(?!.*\d)', os.path.splitext(filename)[0])
+                file_number = int(match_num.group(1)) if match_num else None
+                
+                # 3.1. Получаем информацию о файле
+                target_folder, new_filename, is_friend_photo = self._get_target_directory(
+                    base_target_dir, filename, students_map, teachers_map, general_map, group_map, font_map
+                )
+
+                if is_friend_photo:
+                    # Это фото друга: ищем всех, кто его использует
+                    if file_number is None: continue # Друг должен иметь номер
+                    
+                    if file_number not in friend_photo_targets:
+                        friend_photo_targets[file_number] = {
+                            'source': source_path,
+                            'targets': []
+                        }
+                    
+                    # Проходим по всем студентам и собираем их целевые пути для этого фото
+                    for student_name, position_map in students_map.items():
+                        if file_number in position_map and position_map.get(file_number) in [3, 4]:
+                            
+                            target_folder_f, new_filename_f = self._get_renamed_path_and_folder(
+                                base_target_dir, filename, student_name, file_number, position_map
+                            )
+                            
+                            friend_photo_targets[file_number]['targets'].append({
+                                'target_folder': target_folder_f, 
+                                'new_filename': new_filename_f
+                            })
+                            
+                elif target_folder:
+                    # Это уникальный файл (портрет, учитель и т.д.): добавляем в список на перемещение
+                    unique_photo_moves.append({
+                        'source': source_path,
+                        'target_folder': target_folder,
+                        'new_filename': new_filename
+                    })
+                
                 # Обновляем статус
                 progress_percent = int(((i + 1) / total_files) * 100)
-                on_progress(f"Сортировка {progress_percent}%: {filename}...", progress_percent)
+                on_progress(f"Подготовка {progress_percent}%: {filename}...", progress_percent)
 
-                # Получаем целевую папку, НОВОЕ ИМЯ и ФЛАГ, является ли это фото друга
-                target_folder, new_filename, is_friend_photo = self._get_target_directory(
-                    base_target_dir, filename, 
-                    students_map, teachers_map, general_map, group_map,
-                    font_map
-                )
+
+            # --- Проход 2: Выполнение операций ---
+            
+            moved_count = 0
+            all_processed_paths = [] # Для финального удаления
+            current_file_index = 0
+            
+            # Общее количество операций
+            total_operations = len(unique_photo_moves) + sum(len(d['targets']) for d in friend_photo_targets.values())
+
+            # 4. Выполнение КОПИРОВАНИЯ (Фото друзей)
+            for file_number, data in friend_photo_targets.items():
+                source_path = data['source']
+                original_filename = os.path.basename(source_path)
                 
-                # ИСПРАВЛЕНИЕ (ПРОБЛЕМА С "ОБЩАЯ"):
-                # Если папка None, значит файл не нужно перемещать (он не в selected.txt)
-                if target_folder is None:
-                    continue
+                for target in data['targets']:
+                    
+                    current_file_index += 1
+                    progress_percent = int((current_file_index / total_operations) * 100)
+                    on_progress(f"Копирование друзей {progress_percent}%: {original_filename} -> {os.path.basename(target['target_folder'])}...", progress_percent)
+
+                    target_folder = target['target_folder']
+                    new_filename = target['new_filename']
+                    target_path = os.path.join(target_folder, new_filename)
+                    
+                    # Обработка дубликатов (как в предыдущей версии)
+                    if os.path.exists(target_path):
+                        name_base, name_ext = os.path.splitext(new_filename)
+                        count = 1
+                        if re.search(r'_\d+$', name_base):
+                            name_base = re.sub(r'_\d+$', '', name_base)
+                        while os.path.exists(os.path.join(target_folder, f"{name_base}_{count}{name_ext}")):
+                            count += 1
+                        target_path = os.path.join(target_folder, f"{name_base}_{count}{name_ext}")
+
+                    os.makedirs(target_folder, exist_ok=True)
+                    shutil.copy2(source_path, target_path)
+                    moved_count += 1
+                    all_processed_paths.append(source_path) # Отслеживаем исходный путь
+
+            # 5. Выполнение ПЕРЕМЕЩЕНИЯ (Уникальные фото)
+            for move_data in unique_photo_moves:
                 
-                # Конечный путь для перемещения/копирования
+                current_file_index += 1
+                progress_percent = int((current_file_index / total_operations) * 100)
+                original_filename = os.path.basename(move_data['source'])
+                on_progress(f"Перемещение уникальных {progress_percent}%: {original_filename}...", progress_percent)
+                
+                source_path = move_data['source']
+                target_folder = move_data['target_folder']
+                new_filename = move_data['new_filename']
                 target_path = os.path.join(target_folder, new_filename)
                 
-                # ИСПРАВЛЕНИЕ (ПРОБЛЕМА С "ВЫРЕЗАНИЕМ"):
-                # Всегда используем ВЫРЕЗАТЬ (shutil.move).
-                # Логика "копирования" фото друзей была неверной для этого этапа.
-                operation = shutil.move
-                
-                # *** КРИТИЧНОЕ ИСПРАВЛЕНИЕ ДЛЯ ПЕРЕЗАПИСИ ***
+                # Обработка дубликатов (как в предыдущей версии)
                 if os.path.exists(target_path):
                     name_base, name_ext = os.path.splitext(new_filename)
                     count = 1
+                    if re.search(r'_\d+$', name_base):
+                        name_base = re.sub(r'_\d+$', '', name_base)
                     while os.path.exists(os.path.join(target_folder, f"{name_base}_{count}{name_ext}")):
                         count += 1
-                    new_filename = f"{name_base}_{count}{name_ext}"
-                    target_path = os.path.join(target_folder, new_filename)
-                # **********************************************
-                
-                os.makedirs(target_folder, exist_ok=True) 
-                
-                # ВЫПОЛНЕНИЕ ОПЕРАЦИИ
-                try:
-                    operation(source_path, target_path) 
-                    moved_count += 1
-                except FileNotFoundError:
-                    # Эта ошибка теперь не должна возникать, но оставим защиту
-                    print(f"Предупреждение: Файл {filename} не найден в источнике. Пропускаем.")
-                except Exception as e:
-                    raise # Перебрасываем любую другую ошибку
-                
+                    target_path = os.path.join(target_folder, f"{name_base}_{count}{name_ext}")
+
+                os.makedirs(target_folder, exist_ok=True)
+                shutil.move(source_path, target_path) # Используем move
+                moved_count += 1
+                all_processed_paths.append(source_path) # Отслеживаем исходный путь (после move, он уже пуст)
+
+
+            # --- ФИНАЛЬНАЯ ОЧИСТКА ---
+            on_progress("Проверка и удаление JPG из 'отобранный материал'...", 99)
+            
+            # Удаляем оригиналы, которые были скопированы (только для friend_photo_targets)
+            # Берем уникальные пути из списка всех обработанных путей
+            unique_paths_to_delete = sorted(list(set(all_processed_paths)))
+            
+            for path in unique_paths_to_delete:
+                # Мы удаляем только те, что остались в папке (т.е. скопированные фото друзей).
+                if os.path.exists(path) and path.lower().endswith(('.jpg', '.jpeg')):
+                    os.remove(path) 
+            
             # --- ЗАВЕРШЕНИЕ СОРТИРОВКИ ---
             self.master.after(0, self._on_sort_complete, f"УСПЕХ! Отсортировано {moved_count} JPG.", False)
 
