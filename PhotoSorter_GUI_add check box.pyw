@@ -355,7 +355,7 @@ class FolderGeneratorApp:
         
         # --- ИЗМЕНЕНИЕ: Новые переменные для чекбоксов ---
         self.var_copy_selected_raw = tk.BooleanVar()
-        self.var_copy_all_raw_jpg = tk.BooleanVar()
+        # self.var_copy_all_raw_jpg УДАЛЕНО
         self.var_jpg_exported = tk.BooleanVar()
         
         self.generate_button = None 
@@ -372,7 +372,7 @@ class FolderGeneratorApp:
         # НОВОЕ: Контейнеры для чекбоксов (для блокировки)
         # (frame, canvas, label)
         self.cb_widgets_selected_raw = None
-        self.cb_widgets_all_raw_jpg = None
+        # self.cb_widgets_all_raw_jpg УДАЛЕНО
         self.cb_widgets_jpg_exported = None
         
         # НОВОЕ: Общий флаг блокировки для ВСЕХ фоновых задач
@@ -420,7 +420,7 @@ class FolderGeneratorApp:
         
         # ИЗМЕНЕНИЕ: Новые чекбоксы, по умолчанию включены
         self.var_copy_selected_raw.set(True)
-        self.var_copy_all_raw_jpg.set(True)
+        # self.var_copy_all_raw_jpg УДАЛЕНО
         self.var_jpg_exported.set(False)
         
     def save_config(self):
@@ -453,7 +453,8 @@ class FolderGeneratorApp:
              color = COLOR_STATUS_ERROR # Если ошибка, используем красный
             
         if self.status_label:
-            self.status_label.config(text=message, fg=color)
+            # Учитываем многострочные сообщения (через \n)
+            self.status_label.config(text=message, fg=color, justify=tk.LEFT)
             self.master.update_idletasks() # Обновляем UI немедленно
         else:
             print(f"СТАТУС: {message}")
@@ -713,23 +714,18 @@ class FolderGeneratorApp:
         
         
         # --------------------------------------------------------------------------
-        # 7. НОВЫЕ Чекбоксы (Копирование)
+        # 7. Чекбокс (Копирование отобранных RAW)
         # --------------------------------------------------------------------------
         checkbox_container_top = tk.Frame(main_frame, bg=COLOR_BACKGROUND)
         checkbox_container_top.grid(row=row, column=0, columnspan=4, sticky='w', padx=10, pady=(20,0))
         
-        # Чекбокс 1
+        # Чекбокс 1 (Отобранные RAW)
         self.cb_widgets_selected_raw = self.create_styled_checkbox_in_frame(
             checkbox_container_top, "Скопировать отобранные raw", 
             self.var_copy_selected_raw, self, 0, 0, 1, 4
         )
         
-        # Чекбокс 2
-        # ИСПРАВЛЕНИЕ: Текст возвращен к оригиналу
-        self.cb_widgets_all_raw_jpg = self.create_styled_checkbox_in_frame(
-            checkbox_container_top, "Скопировать все raw и jpg", 
-            self.var_copy_all_raw_jpg, self, 1, 0, 1, 4
-        )
+        # Чекбокс 2 (ВСЕ RAW и JPG) — УДАЛЕН
         row += 1
         
         # --------------------------------------------------------------------------
@@ -855,8 +851,6 @@ class FolderGeneratorApp:
         # Находим 'variable'
         if cb_widgets == self.cb_widgets_selected_raw:
             self.var_copy_selected_raw.set(self.var_copy_selected_raw.get())
-        elif cb_widgets == self.cb_widgets_all_raw_jpg:
-            self.var_copy_all_raw_jpg.set(self.var_copy_all_raw_jpg.get())
         elif cb_widgets == self.cb_widgets_jpg_exported:
             self.var_jpg_exported.set(self.var_jpg_exported.get())
 
@@ -900,7 +894,7 @@ class FolderGeneratorApp:
             entry_widget.set_state(fields_state)
             
         self._set_checkbox_state(self.cb_widgets_selected_raw, fields_state)
-        self._set_checkbox_state(self.cb_widgets_all_raw_jpg, fields_state)
+        # self.cb_widgets_all_raw_jpg УДАЛЕНО из списка
         self._set_checkbox_state(self.cb_widgets_jpg_exported, fields_state)
             
         # Обновление статуса
@@ -912,6 +906,9 @@ class FolderGeneratorApp:
              self._update_status("", is_error=False) # Ничего не выводим при чистом старте
         elif self.is_structure_generated and is_sort_complete:
              self._update_status("Готово к сортировке JPG.", is_error=False)
+        elif self.is_structure_generated and not self.var_jpg_exported.get():
+             # НОВОЕ: Двухстрочная подсказка после генерации
+             self._update_status("Сгенерировано. Выведите JPG в папку 'отобранный материал'\nи отметьте чекбокс.", is_error=False)
         elif not shooting_path_valid:
              self._update_status("Выберите Путь к съемке.", is_error=False) # Не ошибка
         elif not selection_file_exists:
@@ -1280,7 +1277,7 @@ class FolderGeneratorApp:
             
         # Получаем состояния чекбоксов ПЕРЕД запуском потока
         run_copy_selected = self.var_copy_selected_raw.get()
-        run_copy_all = self.var_copy_all_raw_jpg.get()
+        # run_copy_all УДАЛЕНО
     
         # 2. Блокировка UI
         self.is_processing = True # Установка флага
@@ -1292,14 +1289,14 @@ class FolderGeneratorApp:
         # 3. Запуск задачи в отдельном потоке
         copy_thread = threading.Thread(
             target=self._generation_task, 
-            args=(order_num, run_copy_selected, run_copy_all),
+            args=(order_num, run_copy_selected), # run_copy_all УДАЛЕНО
             daemon=True
         )
         copy_thread.start()
 
-    def _generation_task(self, order_num, run_copy_selected, run_copy_all):
+    def _generation_task(self, order_num, run_copy_selected): # run_copy_all УДАЛЕНО
         """
-        Фоновая задача: ВЫПОЛНЯЕТ ВСЕ задачи (генерация, копирование 1, копирование 2).
+        Фоновая задача: ВЫПОЛНЯЕТ ВСЕ задачи (генерация и копирование отобранных RAW).
         """
         
         # --- ОБЩИЙ КОЛБЭК ДЛЯ СТАТУСА ---
@@ -1311,8 +1308,6 @@ class FolderGeneratorApp:
             total_steps = 1 # 1 for structure
             if run_copy_selected:
                 total_steps += 1
-            if run_copy_all:
-                total_steps += 2 # 1 for RAW, 1 for JPG
             current_step = 0
 
             # --- ЧАСТЬ 0: Чтение данных (нужно для папок учеников) ---
@@ -1360,44 +1355,12 @@ class FolderGeneratorApp:
                     self.master.after(0, self._open_target_folder_after_copy, target_raw_dir)
 
 
-            # --- ЧАСТЬ 3: Копирование ВСЕХ RAW и JPG (Если отмечено) ---
-            if run_copy_all:
-                # --- ЧАСТЬ 3.1: Копирование ВСЕХ RAW ---
-                current_step += 1
-                target_all_raw_dir = os.path.join(self.output_path, order_num, f"{order_num} дубли равы", "дубли")
-                
-                if os.path.isdir(target_all_raw_dir) and os.listdir(target_all_raw_dir):
-                     on_progress(f"Этап {current_step}/{total_steps}: Пропущено (Все RAW уже скопированы).", 0)
-                else:
-                    on_progress(f"Этап {current_step}/{total_steps}: Копирование ВСЕХ RAW (в 'дубли равы/дубли')...", 0)
-                    (message_raw, is_error_raw) = self._perform_all_raw_copy_logic(
-                        self.shooting_path, # Откуда
-                        target_all_raw_dir,    # Куда
-                        on_progress
-                    )
-                    if is_error_raw:
-                        raise Exception(message_raw)
-                    
-                # --- ЧАСТЬ 3.2: Копирование ВСЕХ JPG ---
-                current_step += 1
-                target_all_jpg_dir = os.path.join(self.output_path, order_num, f"{order_num} дубли")
-
-                if os.path.isdir(target_all_jpg_dir) and os.listdir(target_all_jpg_dir):
-                    on_progress(f"Этап {current_step}/{total_steps}: Пропущено (Все JPG уже скопированы).", 0)
-                else:
-                    on_progress(f"Этап {current_step}/{total_steps}: Копирование ВСЕХ JPG (в 'дубли')...", 0)
-                    (message_jpg, is_error_jpg) = self._perform_all_jpg_copy_logic(
-                        self.shooting_path, # Откуда
-                        target_all_jpg_dir,    # Куда
-                        on_progress
-                    )
-                    if is_error_jpg:
-                        raise Exception(message_jpg)
+            # --- ЧАСТЬ 3: Копирование ВСЕХ RAW и JPG (УДАЛЕНО) ---
 
             # --- ЗАВЕРШЕНИЕ ---
             # ИЗМЕНЕНИЕ: Улучшенное сообщение
             final_msg = "УСПЕХ! Структура проверена и обновлена."
-            if not run_copy_selected and not run_copy_all:
+            if not run_copy_selected:
                 final_msg = "УСПЕХ! Структура папок создана."
                 
             self.master.after(0, self._on_generation_complete, final_msg, False, order_num)
@@ -1492,79 +1455,7 @@ class FolderGeneratorApp:
         final_msg = f"УСПЕХ! Скопировано {raw_copy_count} отобранных RAW."
         return final_msg, False, not_found_files
 
-    def _perform_all_raw_copy_logic(self, source_dir, target_dir, on_progress):
-        """
-        Фоновая ЛОГИКА: Копирует ВСЕ RAW. (Переименовано)
-        Вызывается из _generation_task.
-        Возвращает (message, is_error)
-        """
-        try:
-            os.makedirs(target_dir, exist_ok=True)
-            
-            # Собираем ВСЕ файлы (RAW) из папки съемки
-            extensions_to_copy = tuple(RAW_EXTENSIONS) # <--- ТОЛЬКО RAW
-            
-            all_files = [
-                f for f in os.listdir(source_dir) 
-                if os.path.isfile(os.path.join(source_dir, f)) and f.lower().endswith(extensions_to_copy)
-            ]
-            
-            total_files = len(all_files)
-            if total_files == 0:
-                return "Предупреждение: Не найдено RAW-файлов для копирования в 'дубли равы/дубли'.", False
-
-            on_progress(f"0%: Найдено {total_files} (Все RAW)...", 0)
-            
-            for i, filename in enumerate(all_files):
-                progress_percent = int(((i + 1) / total_files) * 100)
-                on_progress(f"{progress_percent}%: (Все RAW) {filename}...", progress_percent)
-                
-                source_path = os.path.join(source_dir, filename)
-                target_path = os.path.join(target_dir, filename)
-                
-                shutil.copy2(source_path, target_path)
-
-            return f"УСПЕХ! Скопировано {total_files} (Все RAW).", False
-            
-        except Exception as e:
-            return f"Ошибка копирования ВСЕХ RAW: {e}", True
-
-    def _perform_all_jpg_copy_logic(self, source_dir, target_dir, on_progress):
-        """
-        Фоновая ЛОГИКА: Копирует ВСЕ JPG.
-        Вызывается из _generation_task.
-        Возвращает (message, is_error)
-        """
-        try:
-            os.makedirs(target_dir, exist_ok=True)
-            
-            # Собираем ВСЕ файлы (JPG) из папки съемки
-            extensions_to_copy = ('.jpg', '.jpeg') # <--- ТОЛЬКО JPG
-            
-            all_files = [
-                f for f in os.listdir(source_dir) 
-                if os.path.isfile(os.path.join(source_dir, f)) and f.lower().endswith(extensions_to_copy)
-            ]
-            
-            total_files = len(all_files)
-            if total_files == 0:
-                return "Предупреждение: Не найдено JPG-файлов для копирования в 'дубли'.", False
-
-            on_progress(f"0%: Найдено {total_files} (Все JPG)...", 0)
-            
-            for i, filename in enumerate(all_files):
-                progress_percent = int(((i + 1) / total_files) * 100)
-                on_progress(f"{progress_percent}%: (Все JPG) {filename}...", progress_percent)
-                
-                source_path = os.path.join(source_dir, filename)
-                target_path = os.path.join(target_dir, filename)
-                
-                shutil.copy2(source_path, target_path)
-
-            return f"УСПЕХ! Скопировано {total_files} (Все JPG).", False
-            
-        except Exception as e:
-            return f"Ошибка копирования ВСЕХ JPG: {e}", True
+    # --- ФУНКЦИИ _perform_all_raw_copy_logic и _perform_all_jpg_copy_logic УДАЛЕНЫ ---
 
 
     def _find_file_by_number(self, directory, number):
@@ -1699,7 +1590,7 @@ class FolderGeneratorApp:
         
         # 4. Сбрасываем Чекбоксы
         self.var_copy_selected_raw.set(True)
-        self.var_copy_all_raw_jpg.set(True)
+        # self.var_copy_all_raw_jpg УДАЛЕНО
         self.var_jpg_exported.set(False)
         
         self.check_input_fields()
@@ -1752,9 +1643,6 @@ class FolderGeneratorApp:
         """
         Определяет целевую папку и новое имя для файла.
         Возвращает (target_folder, new_filename, is_friend_photo: bool).
-        
-        ВНИМАНИЕ: Эта функция используется для определения, является ли файл уникальным или другом, 
-        а также для определения целевого пути уникальных файлов.
         """
         
         original_filename_no_ext = os.path.splitext(filename)[0]
